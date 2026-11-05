@@ -36,9 +36,11 @@ import {
   Gift,
   Layers,
   PackageOpen,
+  RotateCcw,
   Settings,
   Shield,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Swords,
   Trophy,
@@ -118,7 +120,7 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
     updatedAt: new Date().toISOString(),
     coins: 15000,
     jackpotCharges: 0,
-    universe: 'CROSSOVER',
+    universe: 'REALISTIC',
     franchiseTeam: DEFAULT_CUSTOM_TEAM,
     useFranchiseJersey: false,
     ownedMap: {
@@ -216,14 +218,25 @@ function loadInitialProfiles(): {
   try {
     const raw = localStorage.getItem(STORAGE_PROFILES_KEY);
     const activeRaw = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
+    const migrated = localStorage.getItem('primetime_dynasty_realistic_default_v1');
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, FullSavedProfile>;
       const ids = Object.keys(parsed);
       if (ids.length > 0) {
+        if (!migrated) {
+          ids.forEach((k) => {
+            if (parsed[k].universe === 'CROSSOVER') {
+              parsed[k].universe = 'REALISTIC';
+            }
+          });
+          localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
+          localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(parsed));
+        }
         const chosenId = activeRaw && parsed[activeRaw] ? activeRaw : ids[0];
         return { profiles: parsed, activeId: chosenId };
       }
     }
+    localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
   } catch (e) {
     console.warn('Could not load saved profiles from localStorage:', e);
   }
@@ -384,7 +397,7 @@ export function App() {
     setGmName(prof.gmName);
     setCoins(prof.coins);
     setJackpotCharges(prof.jackpotCharges ?? 0);
-    setUniverse(prof.universe ?? 'CROSSOVER');
+    setUniverse(prof.universe ?? 'REALISTIC');
     setFranchiseTeam(prof.franchiseTeam ?? DEFAULT_CUSTOM_TEAM);
     setUseFranchiseJersey(Boolean(prof.useFranchiseJersey));
     setOwnedMap(prof.ownedMap);
@@ -887,17 +900,167 @@ export function App() {
       },
       {
         id: 'ms-forge-100',
-        title: '100 OVR Mythic Forger',
-        description: 'Combine 3 copies of a 99 OVR Primetime card to break the cap and forge a 100 OVR card!',
+        title: '100 OVR Dark Matter Forger',
+        description: 'Combine 3 copies of a 99 OVR Primetime card to break the cap and forge a 100 OVR Dark Matter card!',
         rewardCoins: 10000,
         rewardCharges: 10,
         unlocked: has100OvrCard,
         progressText: has100OvrCard
-          ? '100 OVR Forged!'
+          ? '100 Dark Matter Forged!'
           : 'Combine 3x 99 OVR Cards',
       },
     ];
   }, [ownedCardsList, userRecord.wins, teamOvr]);
+
+  // Live Card Market (4 Rotating Singles + 3 Trending 2.5x Sell Surge Players)
+  const buildCardMarket = (univ: UniverseMode) => {
+    const pool = getCardsForUniverse(univ);
+    const pickRandom = (arr: PlayerCardTemplate[]) =>
+      arr[Math.floor(Math.random() * arr.length)] || pool[0];
+
+    const allStars = pool.filter((c) => c.tier === 'ALL_STAR');
+    const elites = pool.filter((c) => c.tier === 'ELITE');
+    const legends = pool.filter((c) => c.tier === 'LEGENDS');
+    const primetimes = pool.filter((c) => c.tier === 'PRIMETIME');
+
+    // Slot 1: Daily Deal (25% OFF All-Star or Elite)
+    const dealPool = [...allStars, ...elites];
+    const slot1Card = pickRandom(dealPool);
+    const slot1BasePrice = slot1Card.tier === 'ELITE' ? 2400 : 1200;
+    const slot1Price = Math.round(slot1BasePrice * 0.75);
+
+    // Slot 2: All-Star Starter
+    const slot2Card = pickRandom(
+      allStars.filter((c) => c.id !== slot1Card.id)
+    );
+    const slot2Price = 1150 + (slot2Card.ovr - 88) * 120;
+
+    // Slot 3: Franchise Elite (92-94 OVR)
+    const slot3Card = pickRandom(
+      elites.filter((c) => c.id !== slot1Card.id)
+    );
+    const slot3Price = 2400 + (slot3Card.ovr - 92) * 250;
+
+    // Slot 4: Vault Headliner (88% Shiny Legend 95-97, 12% Rare Rainbow Primetime 98-99!)
+    const hitPrimetimeSpotlight = Math.random() < 0.12 && primetimes.length > 0;
+    const slot4Card = hitPrimetimeSpotlight
+      ? pickRandom(primetimes)
+      : pickRandom(legends);
+    const slot4Price = hitPrimetimeSpotlight
+      ? 14500
+      : 4800 + (slot4Card.ovr - 95) * 450;
+
+    // 3 Trending High-Demand Cards (2.5x Quick-Sell Surge)
+    const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+    const trending = shuffledPool.slice(0, 3).map((c) => c.id);
+
+    return {
+      listings: [
+        {
+          slotIndex: 0,
+          tag: '🔥 DAILY DEAL (25% OFF)',
+          card: slot1Card,
+          priceCoins: slot1Price,
+          originalPrice: slot1BasePrice,
+        },
+        {
+          slotIndex: 1,
+          tag: 'ALL-STAR ROTATION',
+          card: slot2Card,
+          priceCoins: slot2Price,
+        },
+        {
+          slotIndex: 2,
+          tag: 'FRANCHISE ELITE',
+          card: slot3Card,
+          priceCoins: slot3Price,
+        },
+        {
+          slotIndex: 3,
+          tag: hitPrimetimeSpotlight
+            ? '🌈 RARE PRIMETIME SPOTLIGHT!'
+            : '✨ SHINY LEGEND HEADLINER',
+          card: slot4Card,
+          priceCoins: slot4Price,
+        },
+      ],
+      trendingIds: trending,
+    };
+  };
+
+  const [cardMarket, setCardMarket] = useState(() => buildCardMarket(universe));
+  const [boughtMarketSlots, setBoughtMarketSlots] = useState<number[]>([]);
+
+  // Refresh Card Market automatically when universe changes
+  useEffect(() => {
+    setCardMarket(buildCardMarket(universe));
+    setBoughtMarketSlots([]);
+  }, [universe]);
+
+  const handleRerollMarket = () => {
+    const REROLL_COST = 200;
+    if (coins < REROLL_COST) {
+      alert(`Need ${REROLL_COST} Coins to refresh the Card Market!`);
+      return;
+    }
+    setCoins((c) => c - REROLL_COST);
+    setCardMarket(buildCardMarket(universe));
+    setBoughtMarketSlots([]);
+  };
+
+  const handleBuyMarketCard = (
+    slotIndex: number,
+    card: PlayerCardTemplate,
+    priceCoins: number
+  ) => {
+    if (boughtMarketSlots.includes(slotIndex)) return;
+    if (coins < priceCoins) {
+      alert(
+        `Need ${priceCoins.toLocaleString()} Coins to buy ${card.editionTitle} ${card.firstName} ${card.lastName}!`
+      );
+      return;
+    }
+    setCoins((c) => c - priceCoins);
+    setBoughtMarketSlots((prev) => [...prev, slotIndex]);
+    setOwnedMap((prev) => {
+      const existing = prev[card.id];
+      return {
+        ...prev,
+        [card.id]: existing
+          ? { ...existing, quantity: existing.quantity + 1 }
+          : {
+              cardId: card.id,
+              quantity: 1,
+              evoBonus: 0,
+              gamesPlayed: 0,
+              totalPoints: 0,
+              totalRebounds: 0,
+              totalAssists: 0,
+              clutchPlaysWon: 0,
+              clutchPlaysTotal: 0,
+            },
+      };
+    });
+    if (card.tier === 'PRIMETIME' || card.tier === 'LEGENDS') {
+      confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
+    }
+  };
+
+  const handleSellTrendingDuplicate = (cardId: string) => {
+    const owned = ownedMap[cardId];
+    if (!owned || owned.quantity <= 1) return;
+    const card = cardById(cardId);
+    const surgePayout = Math.round(card.quickSellCoins * 2.5);
+    setCoins((c) => c + surgePayout);
+    setOwnedMap((prev) => ({
+      ...prev,
+      [cardId]: {
+        ...prev[cardId],
+        quantity: prev[cardId].quantity - 1,
+      },
+    }));
+    confetti({ particleCount: 40, spread: 55, origin: { y: 0.7 } });
+  };
 
   const unclaimedReadyCount = useMemo(() => {
     return milestonesList.filter(
@@ -1248,41 +1411,164 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Featured Multi-Edition Spotlight (Showing 84 Base, 97 Shiny Legends & 99 Rainbow Primetime side by side!) */}
-                <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* Live Card Market (Replaces Edition Showcase!) */}
+                <div className="p-6 rounded-3xl bg-slate-900/95 border border-slate-800 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                      <h3 className="font-sport font-extrabold text-xl text-white">
-                        EDITION SHOWCASE: SAME PLAYER, DIFFERENT TIERS & SHADERS
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-extrabold uppercase mb-1">
+                        <ShoppingBag className="w-3 h-3" /> Live Singles Market • Refreshes After Every Showdown Game
+                      </div>
+                      <h3 className="font-sport font-extrabold text-2xl text-white">
+                        LIVE CARD MARKET: BUY SINGLES & CHASE 3× EVOLUTIONS
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Compare Base (Matte), Shiny Legends (95–97 Holographic), and Primetime (98–99 Prismatic Rainbow). Click any card to inspect!
+                        Buy specific single cards directly with Coins—perfect for hunting a 3rd copy to evolve (+1 OVR) or forging 3× 99s into a <strong>100 OVR Dark Matter</strong> card!
                       </p>
                     </div>
+
+                    <button
+                      onClick={handleRerollMarket}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5 transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Refresh Market (200 Coins)
+                    </button>
                   </div>
 
+                  {/* 4 Rotating Single Card Listings */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 justify-items-center">
-                    {[
-                      'mj-base-84',
-                      'mj-legends-97',
-                      'mj-primetime-99',
-                      'fict-blaze-primetime-99',
-                    ].map((id) => {
-                      const c = cardById(id);
-                      const owned = ownedMap[id];
+                    {cardMarket.listings.map((item) => {
+                      const c = item.card;
+                      const owned = ownedMap[c.id];
+                      const ownedQty = owned?.quantity ?? 0;
+                      const isBought = boughtMarketSlots.includes(item.slotIndex);
+                      const canAfford = coins >= item.priceCoins;
+                      const needsOneForEvo = ownedQty === 2;
+
                       return (
-                        <PlayerCard
-                          key={id}
-                          card={c}
-                          evoBonus={owned?.evoBonus ?? 0}
-                          quantity={owned?.quantity ?? 0}
-                          useFranchiseJersey={useFranchiseJersey}
-                          franchiseTeam={franchiseTeam}
-                          size="md"
-                          onClick={() => setInspectedCard(c)}
-                        />
+                        <div
+                          key={item.slotIndex}
+                          className="flex flex-col items-center gap-2.5 w-60"
+                        >
+                          <div className="w-full flex items-center justify-between px-1">
+                            <span className="px-2 py-0.5 rounded bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold uppercase truncate">
+                              {item.tag}
+                            </span>
+                            <span
+                              className={`text-[10px] font-extrabold ${
+                                needsOneForEvo
+                                  ? 'text-emerald-400 animate-pulse'
+                                  : ownedQty > 0
+                                  ? 'text-sky-300'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {needsOneForEvo
+                                ? 'Owned ×2 (1 Away from Evo!)'
+                                : ownedQty > 0
+                                ? `Owned ×${ownedQty}`
+                                : 'Unowned'}
+                            </span>
+                          </div>
+
+                          <PlayerCard
+                            card={c}
+                            evoBonus={owned?.evoBonus ?? 0}
+                            quantity={ownedQty}
+                            useFranchiseJersey={useFranchiseJersey}
+                            franchiseTeam={franchiseTeam}
+                            size="md"
+                            onClick={() => setInspectedCard(c)}
+                          />
+
+                          <button
+                            disabled={isBought}
+                            onClick={() =>
+                              handleBuyMarketCard(
+                                item.slotIndex,
+                                c,
+                                item.priceCoins
+                              )
+                            }
+                            className={`w-full py-2.5 rounded-xl font-sport font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+                              isBought
+                                ? 'bg-slate-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed'
+                                : canAfford
+                                ? 'bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 shadow-lg shadow-emerald-500/20'
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}
+                          >
+                            {isBought ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" />
+                                Purchased (In Binder)
+                              </>
+                            ) : (
+                              <>
+                                <Coins className="w-4 h-4" />
+                                Buy • {item.priceCoins.toLocaleString()} Coins
+                                {item.originalPrice && (
+                                  <span className="line-through text-[11px] opacity-70 ml-1">
+                                    {item.originalPrice}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </button>
+                        </div>
                       );
                     })}
+                  </div>
+
+                  {/* Trending 2.5x High-Demand Duplicate Sell Surge Bar */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-extrabold uppercase text-amber-400 flex items-center gap-1.5">
+                        <Flame className="w-4 h-4 text-rose-400" />
+                        Hot Market Demand: 2.5× Duplicate Sell Price right now!
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Hold onto duplicates in your binder until they trend here to cash out for 2.5× Coins!
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {cardMarket.trendingIds.map((id) => {
+                        const c = cardById(id);
+                        const owned = ownedMap[id];
+                        const hasDup = (owned?.quantity ?? 0) > 1;
+                        const surgePrice = Math.round(c.quickSellCoins * 2.5);
+                        return (
+                          <div
+                            key={id}
+                            className={`px-3 py-1.5 rounded-xl border text-xs flex items-center gap-2 ${
+                              hasDup
+                                ? 'bg-amber-500/20 border-amber-400 text-white'
+                                : 'bg-slate-900 border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <button
+                              onClick={() => setInspectedCard(c)}
+                              className="font-bold hover:text-amber-300 text-left"
+                            >
+                              <span className="text-amber-400">{c.ovr}</span>{' '}
+                              {c.lastName}{' '}
+                              <span className="text-[10px] text-slate-400">
+                                (+{surgePrice} Coins)
+                              </span>
+                            </button>
+                            {hasDup && (
+                              <button
+                                onClick={() => handleSellTrendingDuplicate(id)}
+                                className="px-2 py-0.5 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-extrabold uppercase"
+                              >
+                                Sell 1 Dup (×{owned.quantity})
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1348,7 +1634,7 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Collection Binder + Duplicate Quick-Sell & Combine (+1 OVR Evo, including 3x 99 -> 100 OVR!) */}
+                {/* Collection Binder + Duplicate Quick-Sell & Combine (+1 OVR Evo, including 3x 99 -> 100 Dark Matter!) */}
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -1356,7 +1642,7 @@ export function App() {
                         COLLECTION BINDER ({ownedCardsList.length} Unique Editions Owned)
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Sell extra duplicates for Coins, combine 3 copies for +1 OVR, or combine 3 copies of a <strong>99 OVR</strong> card to forge a <strong>100 OVR</strong> card!
+                        Sell extra duplicates for Coins, combine 3 copies for +1 OVR, or combine 3 copies of a <strong>99 OVR</strong> card to forge a <strong>100 OVR Dark Matter</strong> card!
                       </p>
                     </div>
                   </div>
@@ -1423,11 +1709,15 @@ export function App() {
                               {canCombine && (
                                 <button
                                   onClick={() => handleCombineEvo(card.id)}
-                                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-extrabold flex items-center justify-center gap-1 transition"
+                                  className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 transition ${
+                                    card.ovr + owned.evoBonus === 99
+                                      ? 'bg-gradient-to-r from-purple-700 via-fuchsia-500 to-amber-400 text-white shadow-md shadow-fuchsia-500/30'
+                                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                                  }`}
                                 >
                                   <ArrowUpCircle className="w-3.5 h-3.5" />
                                   {card.ovr + owned.evoBonus === 99
-                                    ? 'Forge 100 OVR! (3x)'
+                                    ? '🌌 Forge 100 Dark Matter!'
                                     : 'Evo +1 OVR (3x)'}
                                 </button>
                               )}
@@ -1454,6 +1744,10 @@ export function App() {
                 onInspectCard={(card) => setInspectedCard(card)}
                 onJumpToLeaderboard={() => setPackTab('LEADERBOARD')}
                 onCompleteGame={(result) => {
+                  // Refresh the Live Card Market after every completed Showdown game!
+                  setCardMarket(buildCardMarket(universe));
+                  setBoughtMarketSlots([]);
+
                   // 1. Credit Coins on Win OR Deduct Coins on Loss!
                   setCoins((c) => Math.max(0, c + result.coinsEarned));
 

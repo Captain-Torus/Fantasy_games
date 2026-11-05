@@ -193,11 +193,15 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
                       (card.ovr + evoBonus === 99 && card.ovr === 99)) && (
                       <button
                         onClick={() => onCombineEvo(card.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold transition shadow-lg shadow-emerald-500/20"
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold transition shadow-lg ${
+                          card.ovr + evoBonus === 99
+                            ? 'bg-gradient-to-r from-purple-700 via-fuchsia-500 to-amber-400 text-white shadow-fuchsia-500/30 hover:brightness-110'
+                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                        }`}
                       >
                         <ArrowUpCircle className="w-4 h-4" />
                         {card.ovr + evoBonus === 99
-                          ? 'Combine 3x 99s → Forge 100 OVR!'
+                          ? '🌌 Combine 3x 99s → Forge 100 DARK MATTER!'
                           : 'Combine 3 Copies (+1 OVR Evo)'}
                       </button>
                     )}

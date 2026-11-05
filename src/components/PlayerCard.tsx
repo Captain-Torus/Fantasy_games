@@ -119,7 +119,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   const displayTeamAbbr =
     useFranchiseJersey && franchiseTeam ? franchiseTeam.abbreviation : card.teamAbbr;
 
+  const isDarkMatter = effectiveOvr >= 100;
+
   const getOuterFrameClass = (tier: CardTier) => {
+    if (isDarkMatter) {
+      return 'card-tier-darkmatter p-[3.5px]';
+    }
     switch (tier) {
       case 'PRIMETIME':
         return 'card-tier-primetime p-[3px]';
@@ -164,13 +169,16 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     >
       {/* Inner Slab Container */}
       <div className="relative h-full w-full rounded-[13px] bg-slate-950 overflow-hidden flex flex-col justify-between">
-        {/* Foil Overlays for Tier 4 (Legends Shiny) & Tier 5 (Primetime Rainbow) */}
-        {card.tier === 'LEGENDS' && (
+        {/* Foil Overlays for Tier 4 (Legends Shiny), Tier 5 (Primetime Rainbow) & Forged 100 OVR (Dark Matter) */}
+        {isDarkMatter && (
+          <div className="pointer-events-none absolute inset-0 z-20 darkmatter-foil-overlay shimmer-sweep" />
+        )}
+        {!isDarkMatter && card.tier === 'LEGENDS' && (
           <div className="
             pointer-events-none absolute inset-0 z-20 legends-foil-overlay shimmer-sweep
           " />
         )}
-        {card.tier === 'PRIMETIME' && (
+        {!isDarkMatter && card.tier === 'PRIMETIME' && (
           <div className="
             pointer-events-none absolute inset-0 z-20 primetime-rainbow-overlay shimmer-sweep
           " />
@@ -182,23 +190,35 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             <span className="px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider rounded bg-slate-800 text-slate-200 border border-slate-700">
               {card.position}
             </span>
-            <span className="text-[10px] font-bold tracking-wider uppercase truncate text-slate-300">
-              {card.editionTitle}
+            <span
+              className={`text-[10px] font-bold tracking-wider uppercase truncate ${
+                isDarkMatter ? 'text-fuchsia-300' : 'text-slate-300'
+              }`}
+            >
+              {isDarkMatter ? '🌌 DARK MATTER' : card.editionTitle}
             </span>
           </div>
 
           {/* OVR Rating Slab Badge */}
           <div className="flex items-center gap-1 shrink-0">
-            {evoBonus > 0 && (
+            {evoBonus > 0 && !isDarkMatter && (
               <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/90 border border-emerald-500/40 px-1 rounded">
                 +{evoBonus}
               </span>
             )}
             <div
-              className={`px-2 py-0.5 rounded-md font-sport font-extrabold text-base leading-none border flex items-center gap-1 ${TIER_LABELS[card.tier].badgeBg}`}
+              className={`px-2 py-0.5 rounded-md font-sport font-extrabold text-base leading-none border flex items-center gap-1 ${
+                isDarkMatter
+                  ? 'bg-gradient-to-r from-purple-950 via-fuchsia-600 to-amber-400 text-white border-amber-300 shadow-md shadow-fuchsia-500/40'
+                  : TIER_LABELS[card.tier].badgeBg
+              }`}
             >
-              {card.tier === 'PRIMETIME' && <Sparkles className="w-3 h-3" />}
-              {card.tier === 'LEGENDS' && <Flame className="w-3 h-3" />}
+              {(card.tier === 'PRIMETIME' || isDarkMatter) && (
+                <Sparkles className="w-3 h-3" />
+              )}
+              {card.tier === 'LEGENDS' && !isDarkMatter && (
+                <Flame className="w-3 h-3" />
+              )}
               <span>{effectiveOvr}</span>
             </div>
           </div>
