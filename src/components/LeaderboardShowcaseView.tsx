@@ -67,7 +67,8 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
       .map((card) => {
         const owned = ownedMap[card.id];
         const evoBonus = owned?.evoBonus ?? 0;
-        const effectiveOvr = Math.min(99, card.ovr + evoBonus);
+        const maxCap = card.ovr >= 99 && evoBonus > 0 ? 100 : 99;
+        const effectiveOvr = Math.min(maxCap, card.ovr + evoBonus);
         const games = owned?.gamesPlayed ?? 0;
 
         // If the user has played games with this card, use actual box score averages; otherwise show projected league averages based on sub-stats

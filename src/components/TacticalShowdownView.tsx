@@ -45,7 +45,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#E03A3E',
     secondaryColor: '#C1D32F',
     winCoins: 800,
-    lossCoins: 250,
+    lossCoins: 450,
     rosterIds: [
       'trae-legends-95',
       'nique-legends-96',
@@ -63,7 +63,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#CE1141',
     secondaryColor: '#111827',
     winCoins: 1500,
-    lossCoins: 400,
+    lossCoins: 800,
     rosterIds: [
       'mj-primetime-99',
       'mj-legends-97',
@@ -81,7 +81,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#FDB927',
     secondaryColor: '#552583',
     winCoins: 1600,
-    lossCoins: 450,
+    lossCoins: 900,
     rosterIds: [
       'kobe-primetime-98',
       'shaq-primetime-99',
@@ -99,7 +99,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#007A33',
     secondaryColor: '#BA9653',
     winCoins: 1200,
-    lossCoins: 350,
+    lossCoins: 650,
     rosterIds: [
       'bird-legends-97',
       'tatum-allstar-91',
@@ -117,7 +117,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#1D428A',
     secondaryColor: '#FFC72C',
     winCoins: 1400,
-    lossCoins: 400,
+    lossCoins: 750,
     rosterIds: [
       'curry-primetime-99',
       'curry-legends-96',
@@ -135,7 +135,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#98002E',
     secondaryColor: '#F9A01B',
     winCoins: 1100,
-    lossCoins: 300,
+    lossCoins: 600,
     rosterIds: [
       'lebron-legends-97',
       'bam-allstar-88',
@@ -153,7 +153,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#111827',
     secondaryColor: '#00B2A9',
     winCoins: 1250,
-    lossCoins: 350,
+    lossCoins: 650,
     rosterIds: [
       'duncan-legends-97',
       'wemby-elite-93',
@@ -171,7 +171,7 @@ export const CPU_LEAGUE_TEAMS: CpuTeamOpponent[] = [
     primaryColor: '#E56020',
     secondaryColor: '#1D1160',
     winCoins: 1300,
-    lossCoins: 350,
+    lossCoins: 700,
     rosterIds: [
       'kd-elite-94',
       'fict-blaze-primetime-99',
@@ -318,6 +318,8 @@ interface TacticalShowdownViewProps {
   franchiseTeam: TeamIdentity;
   standings: LeagueTeamStanding[];
   useFranchiseJersey: boolean;
+  userTeamOvr: number;
+  userWins: number;
   onInspectCard: (card: PlayerCardTemplate) => void;
   onJumpToLeaderboard: () => void;
   onCompleteGame: (result: {
@@ -355,10 +357,17 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
   franchiseTeam,
   standings,
   useFranchiseJersey,
+  userTeamOvr,
+  userWins,
   onInspectCard,
   onJumpToLeaderboard,
   onCompleteGame,
 }) => {
+  // Dynamic Opponent Scaling: as the user's Team OVR and Win total rise, CPU opponents get stronger!
+  const cpuScaleBonus = Math.min(
+    10,
+    Math.max(0, Math.floor((userTeamOvr - 84) * 0.5) + Math.floor(Math.max(0, userWins - 4) / 3))
+  );
   const [modeTab, setModeTab] = useState<'SET_SERIES' | 'BRACKET'>('SET_SERIES');
 
   // Set Series Configuration (1-Game, Best-of-3, Best-of-5)
@@ -474,7 +483,8 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       .map((id) => NBA_PLAYER_CARDS.find((c) => c.id === id))
       .filter(Boolean) as PlayerCardTemplate[];
     if (cards.length === 0) return 85;
-    return Math.round(cards.reduce((a, b) => a + b.ovr, 0) / cards.length);
+    const baseOvr = Math.round(cards.reduce((a, b) => a + b.ovr, 0) / cards.length);
+    return Math.min(99, baseOvr + cpuScaleBonus);
   };
 
   // Initialize or Reset 8-Team Playoff Bracket
@@ -852,7 +862,8 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
     const userCard = lineupCards[selectedSlot];
     const evo = ownedMap[userCard.id]?.evoBonus ?? 0;
-    const effectiveOvr = Math.min(99, userCard.ovr + evo);
+    const maxCap = userCard.ovr >= 99 && evo > 0 ? 100 : 99;
+    const effectiveOvr = Math.min(maxCap, userCard.ovr + evo);
     const currentStamina = staminaBySlot[selectedSlot];
 
     const { cooldownPlays, staminaDrain } = getCardCooldownAndDrain(
@@ -863,11 +874,11 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     const staminaFactor =
       currentStamina >= 65 ? 1.0 : 0.85 + (currentStamina / 100) * 0.15;
 
-    const uPrimary = Math.min(99, userCard.stats[currentScenario.primaryStat] + evo);
-    const uSecondary = Math.min(99, userCard.stats[currentScenario.secondaryStat] + evo);
+    const uPrimary = Math.min(maxCap, userCard.stats[currentScenario.primaryStat] + evo);
+    const uSecondary = Math.min(maxCap, userCard.stats[currentScenario.secondaryStat] + evo);
 
-    const cPrimary = cpuCard.stats[currentScenario.primaryStat];
-    const cSecondary = cpuCard.stats[currentScenario.secondaryStat];
+    const cPrimary = Math.min(99, cpuCard.stats[currentScenario.primaryStat] + cpuScaleBonus);
+    const cSecondary = Math.min(99, cpuCard.stats[currentScenario.secondaryStat] + cpuScaleBonus);
 
     let tacticBonus = 0;
     if (tactic === 'BALANCED') {
@@ -887,36 +898,43 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       cPrimary * 0.62 + cSecondary * 0.38 + (Math.random() * 6 - 3)
     );
 
-    const wonPlay = userPower >= cpuPower;
+    // Ties go to the CPU! (e.g. 94 vs. 94 -> CPU wins the play)
+    const isTie = userPower === cpuPower;
+    const wonPlay = userPower > cpuPower;
     const margin = Math.abs(userPower - cpuPower);
 
+    // When you lose or tie a play, the CPU drops ~25 points!
     const userPointsAdded = wonPlay
       ? margin >= 8
-        ? 16
+        ? 18
         : margin >= 4
-        ? 14
-        : 12
+        ? 16
+        : 14
+      : isTie
+      ? 8
       : margin >= 7
-      ? 9
-      : 10;
+      ? 6
+      : 8;
     const cpuPointsAdded = wonPlay
       ? margin >= 7
         ? 9
-        : 10
+        : 11
+      : isTie
+      ? 25
       : margin >= 8
-      ? 16
+      ? 27
       : margin >= 4
-      ? 14
-      : 12;
+      ? 25
+      : 24;
 
-    let finalUserScore = userScore + userPointsAdded;
+    const finalUserScore = userScore + userPointsAdded;
     let finalCpuScore = cpuScore + cpuPointsAdded;
 
     const isLastPlay = playIndex + 1 >= PLAY_SCENARIOS.length;
 
+    // If the final game score is tied after Play 8, the other team (CPU) wins!
     if (isLastPlay && finalUserScore === finalCpuScore) {
-      if (wonPlay) finalUserScore += 2;
-      else finalCpuScore += 2;
+      finalCpuScore += 3;
     }
 
     // Update Box Score (scaled so active players log realistic NBA star totals for the Leaderboard!)
@@ -972,7 +990,9 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       ? `${userCard.firstName} ${userCard.lastName} (#${userCard.jerseyNumber}) overpowers ${cpuCard.lastName} (${userPower} vs ${cpuPower}) for a +${userPointsAdded}–${cpuPointsAdded} swing! (${
           cooldownPlays > 0 ? `${cooldownPlays}-Play Cooldown` : '0 Cooldown'
         })`
-      : `${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) edges out ${userCard.lastName} (${cpuPower} vs ${userPower}) for a ${cpuPointsAdded}–${userPointsAdded} CPU run.`;
+      : isTie
+      ? `TIE BREAKER GOES TO CPU (${userPower} vs ${cpuPower})! ${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) punishes the tie with a ${cpuPointsAdded}–${userPointsAdded} CPU surge!`
+      : `${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) dominates ${userCard.lastName} (${cpuPower} vs ${userPower}) for a massive ${cpuPointsAdded}–${userPointsAdded} CPU run!`;
 
     setPlayLogs((prev) => [
       {
@@ -1036,8 +1056,13 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         {/* Top Mode Selector Banner: Set Games vs CPU Teams OR 8-Team Playoff Bracket */}
         <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/80 border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase mb-2">
-              <Swords className="w-3.5 h-3.5" /> Tactical Showdowns • Tier-Scaled Cooldowns
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase">
+                <Swords className="w-3.5 h-3.5" /> Tactical Showdowns • Ties Go to CPU • Lost Plays = ~25 CPU PTS
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-400/30 text-rose-300 text-xs font-extrabold uppercase">
+                Dynamic Opponent Scaling: +{cpuScaleBonus} CPU OVR Boost (Based on Your {userTeamOvr} OVR & {userWins} Wins)
+              </div>
             </div>
             <h2 className="font-sport font-extrabold text-2xl sm:text-3xl text-white">
               PLAY SET SERIES VS. CPU TEAMS OR ENTER THE 8-TEAM BRACKET

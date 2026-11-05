@@ -101,11 +101,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onClick,
   actionBadge,
 }) => {
-  const effectiveOvr = Math.min(99, card.ovr + evoBonus);
-  const effectiveOff = Math.min(99, card.stats.off + evoBonus);
-  const effectivePlay = Math.min(99, card.stats.play + evoBonus);
-  const effectiveDef = Math.min(99, card.stats.def + evoBonus);
-  const effectiveClu = Math.min(99, card.stats.clu + evoBonus);
+  const maxCap = card.ovr >= 99 && evoBonus > 0 ? 100 : 99;
+  const effectiveOvr = Math.min(maxCap, card.ovr + evoBonus);
+  const effectiveOff = Math.min(maxCap, card.stats.off + evoBonus);
+  const effectivePlay = Math.min(maxCap, card.stats.play + evoBonus);
+  const effectiveDef = Math.min(maxCap, card.stats.def + evoBonus);
+  const effectiveClu = Math.min(maxCap, card.stats.clu + evoBonus);
 
   const primary =
     useFranchiseJersey && franchiseTeam ? franchiseTeam.primaryColor : card.primaryColor;

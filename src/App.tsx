@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CardTier,
   GameMode,
@@ -25,9 +25,12 @@ import { TeamCreatorModal } from './components/TeamCreatorModal';
 import { TacticalShowdownView } from './components/TacticalShowdownView';
 import { DraftFranchiseView } from './components/DraftFranchiseView';
 import { LeaderboardShowcaseView } from './components/LeaderboardShowcaseView';
+import { AccountModal, SavedProfileSummary } from './components/AccountModal';
 import confetti from 'canvas-confetti';
 import {
   ArrowUpCircle,
+  Award,
+  CheckCircle2,
   Coins,
   Flame,
   Gift,
@@ -35,6 +38,7 @@ import {
   PackageOpen,
   Settings,
   Shield,
+  ShieldCheck,
   Sparkles,
   Swords,
   Trophy,
@@ -50,102 +54,232 @@ const LINEUP_SLOTS: { slot: LineupSlot; label: string; posHint: string }[] = [
   { slot: 'SIXTH', label: '6th Man (Any Pos)', posHint: 'ANY' },
 ];
 
+interface FullSavedProfile {
+  id: string;
+  gmName: string;
+  updatedAt: string;
+  coins: number;
+  jackpotCharges: number;
+  universe: UniverseMode;
+  franchiseTeam: TeamIdentity;
+  useFranchiseJersey: boolean;
+  ownedMap: Record<string, OwnedCard>;
+  lineupIds: Record<LineupSlot, string>;
+  userRecord: {
+    wins: number;
+    losses: number;
+    pointsFor: number;
+    pointsAgainst: number;
+    championships: number;
+  };
+  cpuRecords: Record<
+    string,
+    {
+      wins: number;
+      losses: number;
+      pointsFor: number;
+      pointsAgainst: number;
+      championships: number;
+    }
+  >;
+  claimedMilestones: string[];
+}
+
+const STORAGE_PROFILES_KEY = 'primetime_dynasty_profiles_v2';
+const STORAGE_ACTIVE_ID_KEY = 'primetime_dynasty_active_id_v2';
+
+function createDefaultCpuRecords() {
+  const init: Record<
+    string,
+    {
+      wins: number;
+      losses: number;
+      pointsFor: number;
+      pointsAgainst: number;
+      championships: number;
+    }
+  > = {};
+  REAL_NBA_TEAMS.forEach((t, idx) => {
+    init[t.id] = {
+      wins: Math.max(1, 5 - (idx % 4)),
+      losses: 1 + (idx % 4),
+      pointsFor: 540 - idx * 14,
+      pointsAgainst: 515 - idx * 10,
+      championships: idx < 2 ? 1 : 0,
+    };
+  });
+  return init;
+}
+
+function createStarterProfile(id: string, gmName: string): FullSavedProfile {
+  return {
+    id,
+    gmName,
+    updatedAt: new Date().toISOString(),
+    coins: 15000,
+    jackpotCharges: 0,
+    universe: 'CROSSOVER',
+    franchiseTeam: DEFAULT_CUSTOM_TEAM,
+    useFranchiseJersey: false,
+    ownedMap: {
+      'trae-base-84': {
+        cardId: 'trae-base-84',
+        quantity: 1,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 96,
+        totalRebounds: 14,
+        totalAssists: 42,
+        clutchPlaysWon: 3,
+        clutchPlaysTotal: 4,
+      },
+      'mj-base-84': {
+        cardId: 'mj-base-84',
+        quantity: 1,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 118,
+        totalRebounds: 22,
+        totalAssists: 20,
+        clutchPlaysWon: 3,
+        clutchPlaysTotal: 4,
+      },
+      'jalen-johnson-base-83': {
+        cardId: 'jalen-johnson-base-83',
+        quantity: 1,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 68,
+        totalRebounds: 32,
+        totalAssists: 19,
+        clutchPlaysWon: 2,
+        clutchPlaysTotal: 3,
+      },
+      'jjj-base-84': {
+        cardId: 'jjj-base-84',
+        quantity: 1,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 72,
+        totalRebounds: 35,
+        totalAssists: 9,
+        clutchPlaysWon: 2,
+        clutchPlaysTotal: 3,
+      },
+      'naz-base-81': {
+        cardId: 'naz-base-81',
+        quantity: 2,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 64,
+        totalRebounds: 29,
+        totalAssists: 8,
+        clutchPlaysWon: 1,
+        clutchPlaysTotal: 2,
+      },
+      'white-base-83': {
+        cardId: 'white-base-83',
+        quantity: 3,
+        evoBonus: 0,
+        gamesPlayed: 4,
+        totalPoints: 58,
+        totalRebounds: 18,
+        totalAssists: 22,
+        clutchPlaysWon: 2,
+        clutchPlaysTotal: 3,
+      },
+    },
+    lineupIds: {
+      PG: 'trae-base-84',
+      SG: 'mj-base-84',
+      SF: 'jalen-johnson-base-83',
+      PF: 'jjj-base-84',
+      C: 'naz-base-81',
+      SIXTH: 'white-base-83',
+    },
+    userRecord: {
+      wins: 4,
+      losses: 1,
+      pointsFor: 512,
+      pointsAgainst: 468,
+      championships: 1,
+    },
+    cpuRecords: createDefaultCpuRecords(),
+    claimedMilestones: [],
+  };
+}
+
+function loadInitialProfiles(): {
+  profiles: Record<string, FullSavedProfile>;
+  activeId: string;
+} {
+  try {
+    const raw = localStorage.getItem(STORAGE_PROFILES_KEY);
+    const activeRaw = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, FullSavedProfile>;
+      const ids = Object.keys(parsed);
+      if (ids.length > 0) {
+        const chosenId = activeRaw && parsed[activeRaw] ? activeRaw : ids[0];
+        return { profiles: parsed, activeId: chosenId };
+      }
+    }
+  } catch (e) {
+    console.warn('Could not load saved profiles from localStorage:', e);
+  }
+  const starter = createStarterProfile('gm-profile-1', 'GM Player 1');
+  return {
+    profiles: { [starter.id]: starter },
+    activeId: starter.id,
+  };
+}
+
 export function App() {
+  const initialStore = useMemo(() => loadInitialProfiles(), []);
+  const initialActive = initialStore.profiles[initialStore.activeId];
+
+  // Saved GM Accounts & Instant Auto-Login State
+  const [profilesMap, setProfilesMap] = useState<Record<string, FullSavedProfile>>(
+    initialStore.profiles
+  );
+  const [activeProfileId, setActiveProfileId] = useState<string>(
+    initialStore.activeId
+  );
+  const [gmName, setGmName] = useState<string>(initialActive.gmName);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
+  const [claimedMilestones, setClaimedMilestones] = useState<string[]>(
+    initialActive.claimedMilestones || []
+  );
+
   // Core Mode, Universe & Franchise Identity State
   const [gameMode, setGameMode] = useState<GameMode>('PACK_MODE');
   const [packTab, setPackTab] = useState<
-    'PACKS' | 'LINEUP' | 'SHOWDOWN' | 'LEADERBOARD'
+    'PACKS' | 'LINEUP' | 'SHOWDOWN' | 'LEADERBOARD' | 'MILESTONES'
   >('PACKS');
-  const [universe, setUniverse] = useState<UniverseMode>('CROSSOVER');
-  const [franchiseTeam, setFranchiseTeam] =
-    useState<TeamIdentity>(DEFAULT_CUSTOM_TEAM);
-  const [useFranchiseJersey, setUseFranchiseJersey] = useState<boolean>(false);
+  const [universe, setUniverse] = useState<UniverseMode>(initialActive.universe);
+  const [franchiseTeam, setFranchiseTeam] = useState<TeamIdentity>(
+    initialActive.franchiseTeam
+  );
+  const [useFranchiseJersey, setUseFranchiseJersey] = useState<boolean>(
+    initialActive.useFranchiseJersey
+  );
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
   // Pack Mode Economy & Owned Collection Binder
-  // Start with a fun Base/Core starter rotation + 15,000 Coins (no free 97/99 cards so pulling them is a huge rush!)
-  const [coins, setCoins] = useState<number>(15000);
-  const [jackpotCharges, setJackpotCharges] = useState<number>(0);
+  const [coins, setCoins] = useState<number>(initialActive.coins);
+  const [jackpotCharges, setJackpotCharges] = useState<number>(
+    initialActive.jackpotCharges
+  );
   const JACKPOT_TARGET = 35;
 
-  const [ownedMap, setOwnedMap] = useState<Record<string, OwnedCard>>({
-    'trae-base-84': {
-      cardId: 'trae-base-84',
-      quantity: 1,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 96,
-      totalRebounds: 14,
-      totalAssists: 42,
-      clutchPlaysWon: 3,
-      clutchPlaysTotal: 4,
-    },
-    'mj-base-84': {
-      cardId: 'mj-base-84',
-      quantity: 1,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 118,
-      totalRebounds: 22,
-      totalAssists: 20,
-      clutchPlaysWon: 3,
-      clutchPlaysTotal: 4,
-    },
-    'jalen-johnson-base-83': {
-      cardId: 'jalen-johnson-base-83',
-      quantity: 1,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 68,
-      totalRebounds: 32,
-      totalAssists: 19,
-      clutchPlaysWon: 2,
-      clutchPlaysTotal: 3,
-    },
-    'jjj-base-84': {
-      cardId: 'jjj-base-84',
-      quantity: 1,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 72,
-      totalRebounds: 35,
-      totalAssists: 9,
-      clutchPlaysWon: 2,
-      clutchPlaysTotal: 3,
-    },
-    'naz-base-81': {
-      cardId: 'naz-base-81',
-      quantity: 2,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 64,
-      totalRebounds: 29,
-      totalAssists: 8,
-      clutchPlaysWon: 1,
-      clutchPlaysTotal: 2,
-    },
-    'white-base-83': {
-      cardId: 'white-base-83',
-      quantity: 3,
-      evoBonus: 0,
-      gamesPlayed: 4,
-      totalPoints: 58,
-      totalRebounds: 18,
-      totalAssists: 22,
-      clutchPlaysWon: 2,
-      clutchPlaysTotal: 3,
-    },
-  });
+  const [ownedMap, setOwnedMap] = useState<Record<string, OwnedCard>>(
+    initialActive.ownedMap
+  );
 
   // Active 6-Man Lineup
-  const [lineupIds, setLineupIds] = useState<Record<LineupSlot, string>>({
-    PG: 'trae-base-84',
-    SG: 'mj-base-84',
-    SF: 'jalen-johnson-base-83',
-    PF: 'jjj-base-84',
-    C: 'naz-base-81',
-    SIXTH: 'white-base-83',
-  });
+  const [lineupIds, setLineupIds] = useState<Record<LineupSlot, string>>(
+    initialActive.lineupIds
+  );
 
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
 
@@ -162,13 +296,7 @@ export function App() {
   );
 
   // League Team Standings State (Both User & CPU Franchises are stateful and update after every game!)
-  const [userRecord, setUserRecord] = useState({
-    wins: 4,
-    losses: 1,
-    pointsFor: 512,
-    pointsAgainst: 468,
-    championships: 1,
-  });
+  const [userRecord, setUserRecord] = useState(initialActive.userRecord);
 
   const [cpuRecords, setCpuRecords] = useState<
     Record<
@@ -181,28 +309,7 @@ export function App() {
         championships: number;
       }
     >
-  >(() => {
-    const init: Record<
-      string,
-      {
-        wins: number;
-        losses: number;
-        pointsFor: number;
-        pointsAgainst: number;
-        championships: number;
-      }
-    > = {};
-    REAL_NBA_TEAMS.forEach((t, idx) => {
-      init[t.id] = {
-        wins: Math.max(1, 5 - (idx % 4)),
-        losses: 1 + (idx % 4),
-        pointsFor: 540 - idx * 14,
-        pointsAgainst: 515 - idx * 10,
-        championships: idx < 2 ? 1 : 0,
-      };
-    });
-    return init;
-  });
+  >(initialActive.cpuRecords);
 
   const cardById = (id: string): PlayerCardTemplate =>
     NBA_PLAYER_CARDS.find((c) => c.id === id) || NBA_PLAYER_CARDS[0];
@@ -223,10 +330,163 @@ export function App() {
     const sum = slots.reduce((acc, s) => {
       const c = lineupCards[s];
       const evo = ownedMap[c.id]?.evoBonus ?? 0;
-      return acc + Math.min(99, c.ovr + evo);
+      const maxCap = c.ovr >= 99 && evo > 0 ? 100 : 99;
+      return acc + Math.min(maxCap, c.ovr + evo);
     }, 0);
     return Math.round(sum / slots.length);
   }, [lineupCards, ownedMap]);
+
+  // Automatic Instant Save Effect whenever any game state changes!
+  useEffect(() => {
+    const updatedProfile: FullSavedProfile = {
+      id: activeProfileId,
+      gmName,
+      updatedAt: new Date().toISOString(),
+      coins,
+      jackpotCharges,
+      universe,
+      franchiseTeam,
+      useFranchiseJersey,
+      ownedMap,
+      lineupIds,
+      userRecord,
+      cpuRecords,
+      claimedMilestones,
+    };
+
+    setProfilesMap((prev) => {
+      const next = { ...prev, [activeProfileId]: updatedProfile };
+      try {
+        localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(next));
+        localStorage.setItem(STORAGE_ACTIVE_ID_KEY, activeProfileId);
+      } catch (e) {
+        console.warn('Auto-save error:', e);
+      }
+      return next;
+    });
+  }, [
+    activeProfileId,
+    gmName,
+    coins,
+    jackpotCharges,
+    universe,
+    franchiseTeam,
+    useFranchiseJersey,
+    ownedMap,
+    lineupIds,
+    userRecord,
+    cpuRecords,
+    claimedMilestones,
+  ]);
+
+  const applyLoadedProfile = (prof: FullSavedProfile) => {
+    setActiveProfileId(prof.id);
+    setGmName(prof.gmName);
+    setCoins(prof.coins);
+    setJackpotCharges(prof.jackpotCharges ?? 0);
+    setUniverse(prof.universe ?? 'CROSSOVER');
+    setFranchiseTeam(prof.franchiseTeam ?? DEFAULT_CUSTOM_TEAM);
+    setUseFranchiseJersey(Boolean(prof.useFranchiseJersey));
+    setOwnedMap(prof.ownedMap);
+    setLineupIds(prof.lineupIds);
+    setUserRecord(prof.userRecord);
+    setCpuRecords(prof.cpuRecords || createDefaultCpuRecords());
+    setClaimedMilestones(prof.claimedMilestones || []);
+  };
+
+  const handleSwitchProfile = (profileId: string) => {
+    const target = profilesMap[profileId];
+    if (!target) return;
+    applyLoadedProfile(target);
+  };
+
+  const handleCreateNewProfile = (newGmName: string) => {
+    const newId = `gm-${Date.now()}`;
+    const fresh = createStarterProfile(newId, newGmName);
+    setProfilesMap((prev) => ({ ...prev, [newId]: fresh }));
+    applyLoadedProfile(fresh);
+  };
+
+  const handleDeleteProfile = (profileId: string) => {
+    const remainingIds = Object.keys(profilesMap).filter((id) => id !== profileId);
+    if (remainingIds.length === 0) return;
+    setProfilesMap((prev) => {
+      const next = { ...prev };
+      delete next[profileId];
+      try {
+        localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
+    if (profileId === activeProfileId) {
+      applyLoadedProfile(profilesMap[remainingIds[0]]);
+    }
+  };
+
+  const handleExportSaveCode = (): string => {
+    const currentProfile: FullSavedProfile = {
+      id: activeProfileId,
+      gmName,
+      updatedAt: new Date().toISOString(),
+      coins,
+      jackpotCharges,
+      universe,
+      franchiseTeam,
+      useFranchiseJersey,
+      ownedMap,
+      lineupIds,
+      userRecord,
+      cpuRecords,
+      claimedMilestones,
+    };
+    return btoa(encodeURIComponent(JSON.stringify(currentProfile)));
+  };
+
+  const handleImportSaveCode = (code: string): boolean => {
+    try {
+      const jsonStr = decodeURIComponent(atob(code.trim()));
+      const parsed = JSON.parse(jsonStr) as FullSavedProfile;
+      if (!parsed || !parsed.ownedMap || !parsed.lineupIds) return false;
+      const importedId = parsed.id || `gm-imported-${Date.now()}`;
+      const normalized: FullSavedProfile = {
+        ...parsed,
+        id: importedId,
+        gmName: parsed.gmName || 'Imported GM',
+        updatedAt: new Date().toISOString(),
+      };
+      setProfilesMap((prev) => ({ ...prev, [importedId]: normalized }));
+      applyLoadedProfile(normalized);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const savedProfileSummaries: SavedProfileSummary[] = useMemo(() => {
+    return Object.values(profilesMap).map((p) => {
+      const slots: LineupSlot[] = ['PG', 'SG', 'SF', 'PF', 'C', 'SIXTH'];
+      const sum = slots.reduce((acc, s) => {
+        const c = cardById(p.lineupIds[s]);
+        const evo = p.ownedMap[c.id]?.evoBonus ?? 0;
+        const cap = c.ovr >= 99 && evo > 0 ? 100 : 99;
+        return acc + Math.min(cap, c.ovr + evo);
+      }, 0);
+      return {
+        id: p.id,
+        gmName: p.gmName,
+        franchiseName: `${p.franchiseTeam.city} ${p.franchiseTeam.name}`,
+        franchiseAbbr: p.franchiseTeam.abbreviation,
+        primaryColor: p.franchiseTeam.primaryColor,
+        coins: p.coins,
+        teamOvr: Math.round(sum / slots.length),
+        wins: p.userRecord.wins,
+        losses: p.userRecord.losses,
+        updatedAt: p.updatedAt,
+      };
+    });
+  }, [profilesMap]);
 
   const collectionScore = useMemo(() => {
     return Object.values(ownedMap).reduce((sum, item) => {
@@ -546,6 +806,116 @@ export function App() {
       );
   }, [ownedMap]);
 
+  // Milestones & Trophies System
+  const milestonesList = useMemo(() => {
+    const hasLegend = ownedCardsList.some(({ card }) => card.tier === 'LEGENDS');
+    const hasPrimetime = ownedCardsList.some(
+      ({ card }) => card.tier === 'PRIMETIME'
+    );
+    const hasEvolvedCard = ownedCardsList.some(
+      ({ owned }) => owned.evoBonus >= 1
+    );
+    const has100OvrCard = ownedCardsList.some(
+      ({ card, owned }) => card.ovr >= 99 && owned.evoBonus >= 1
+    );
+
+    return [
+      {
+        id: 'ms-first-win',
+        title: 'First Showdown Victory',
+        description: 'Win a Tactical Showdown game against any CPU franchise (Reach 5+ Total Wins).',
+        rewardCoins: 1000,
+        rewardCharges: 2,
+        unlocked: userRecord.wins >= 5,
+        progressText: `${Math.min(5, userRecord.wins)} / 5 Total Wins`,
+      },
+      {
+        id: 'ms-10-wins',
+        title: 'Dynasty Contender (10 Wins)',
+        description: 'Reach 10 Total Franchise Wins in Tactical Showdowns.',
+        rewardCoins: 2500,
+        rewardCharges: 4,
+        unlocked: userRecord.wins >= 10,
+        progressText: `${Math.min(10, userRecord.wins)} / 10 Total Wins`,
+      },
+      {
+        id: 'ms-team-90',
+        title: '90+ OVR Contender Rotation',
+        description: 'Build an active 6-man rotation with a Team Rating of 90 OVR or higher.',
+        rewardCoins: 2000,
+        rewardCharges: 3,
+        unlocked: teamOvr >= 90,
+        progressText: `Current Team OVR: ${teamOvr} / 90`,
+      },
+      {
+        id: 'ms-team-95',
+        title: '95+ OVR Superteam Dynasty',
+        description: 'Build an active 6-man rotation with a Team Rating of 95 OVR or higher.',
+        rewardCoins: 4500,
+        rewardCharges: 5,
+        unlocked: teamOvr >= 95,
+        progressText: `Current Team OVR: ${teamOvr} / 95`,
+      },
+      {
+        id: 'ms-pull-legend',
+        title: 'Shiny Holographic Collector',
+        description: 'Collect at least one 95–97 OVR Shiny Holographic Legends card in your binder.',
+        rewardCoins: 1500,
+        rewardCharges: 3,
+        unlocked: hasLegend,
+        progressText: hasLegend ? 'Owned in Binder!' : '0 / 1 Shiny Legend Owned',
+      },
+      {
+        id: 'ms-pull-primetime',
+        title: 'Prismatic Rainbow Jackpot',
+        description: 'Collect at least one 98–99 OVR Prismatic Rainbow Primetime card in your binder.',
+        rewardCoins: 3500,
+        rewardCharges: 5,
+        unlocked: hasPrimetime,
+        progressText: hasPrimetime
+          ? 'Owned in Binder!'
+          : '0 / 1 Rainbow Primetime Owned',
+      },
+      {
+        id: 'ms-first-evo',
+        title: 'Card Evolution Alchemist',
+        description: 'Combine 3 copies of any player card to permanently boost its OVR by +1.',
+        rewardCoins: 1500,
+        rewardCharges: 3,
+        unlocked: hasEvolvedCard,
+        progressText: hasEvolvedCard ? 'Evolved!' : 'Combine 3x Copies in Binder',
+      },
+      {
+        id: 'ms-forge-100',
+        title: '100 OVR Mythic Forger',
+        description: 'Combine 3 copies of a 99 OVR Primetime card to break the cap and forge a 100 OVR card!',
+        rewardCoins: 10000,
+        rewardCharges: 10,
+        unlocked: has100OvrCard,
+        progressText: has100OvrCard
+          ? '100 OVR Forged!'
+          : 'Combine 3x 99 OVR Cards',
+      },
+    ];
+  }, [ownedCardsList, userRecord.wins, teamOvr]);
+
+  const unclaimedReadyCount = useMemo(() => {
+    return milestonesList.filter(
+      (m) => m.unlocked && !claimedMilestones.includes(m.id)
+    ).length;
+  }, [milestonesList, claimedMilestones]);
+
+  const handleClaimMilestone = (milestoneId: string) => {
+    const m = milestonesList.find((x) => x.id === milestoneId);
+    if (!m || !m.unlocked || claimedMilestones.includes(milestoneId)) return;
+    setClaimedMilestones((prev) => [...prev, milestoneId]);
+    setCoins((c) => c + m.rewardCoins);
+    setJackpotCharges((prev) =>
+      Math.min(JACKPOT_TARGET, prev + m.rewardCharges)
+    );
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* ==================== TOP GLOBAL HEADER ==================== */}
@@ -615,8 +985,21 @@ export function App() {
             </button>
           </div>
 
-          {/* Right Coin Balance & Quick Refill */}
-          <div className="flex items-center gap-2.5">
+          {/* Right GM Account Auto-Login Pill, Coin Balance & Quick Refill */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Option 1 Instant Auto-Login & Cloud Vault Button */}
+            <button
+              onClick={() => setIsAccountModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-xs font-extrabold text-white flex items-center gap-2 transition shadow"
+              title="GM Account, Auto-Save Status, Switch Profiles & Save Backup Codes"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>GM: {gmName}</span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] uppercase">
+                Auto-Saved
+              </span>
+            </button>
+
             {gameMode === 'PACK_MODE' && (
               <>
                 <div className="px-3.5 py-2 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center gap-2">
@@ -664,8 +1047,16 @@ export function App() {
                   },
                   {
                     id: 'LEADERBOARD',
-                    label: 'Detailed Leaderboards & Player Showcase',
+                    label: 'Leaderboards & Showcase',
                     icon: Trophy,
+                  },
+                  {
+                    id: 'MILESTONES',
+                    label:
+                      unclaimedReadyCount > 0
+                        ? `Milestones (${unclaimedReadyCount} Ready!)`
+                        : 'Milestones & Trophies',
+                    icon: Award,
                   },
                 ].map((item) => {
                   const Icon = item.icon;
@@ -677,6 +1068,8 @@ export function App() {
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition ${
                         active
                           ? 'bg-amber-400 text-slate-950 shadow'
+                          : item.id === 'MILESTONES' && unclaimedReadyCount > 0
+                          ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/30'
                           : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
@@ -688,7 +1081,8 @@ export function App() {
               </div>
 
               <div className="text-xs text-slate-400 hidden md:block">
-                Active Squad: <strong className="text-amber-400">{teamOvr} OVR</strong> • Record:{' '}
+                GM: <strong className="text-emerald-400">{gmName}</strong> • Squad:{' '}
+                <strong className="text-amber-400">{teamOvr} OVR</strong> • Record:{' '}
                 <strong className="text-white">
                   {userRecord.wins}-{userRecord.losses}
                 </strong>
@@ -716,7 +1110,7 @@ export function App() {
                 <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/50 border border-slate-800 flex flex-col lg:flex-row items-center justify-between gap-6">
                   <div className="space-y-2 max-w-2xl">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase">
-                      <Sparkles className="w-3.5 h-3.5" /> 5 Rarity Tiers • Shiny Legends (95–97) & Rainbow Primetime (98–99)
+                      <Sparkles className="w-3.5 h-3.5" /> 5 Rarity Tiers • Shiny Legends (95–97) & Rainbow Primetime (98–99 • Forge 3x 99s into 100 OVR!)
                     </div>
                     <h1 className="font-sport font-extrabold text-3xl sm:text-4xl text-white leading-tight">
                       RIP PACKS. COLLECT ICONIC EDITIONS. BUILD THE{' '}
@@ -726,7 +1120,7 @@ export function App() {
                       .
                     </h1>
                     <p className="text-sm text-slate-300">
-                      Pull multiple editions of legends and superstars—like a <strong>97 OVR Shiny Holographic Legends Michael Jordan</strong> alongside a <strong>99 OVR Prismatic Rainbow Primetime Michael Jordan</strong>. Click any card below to inspect all its editions!
+                      Pull multiple editions of legends and superstars—like a <strong>97 OVR Shiny Holographic Legends Michael Jordan</strong> alongside a <strong>99 OVR Prismatic Rainbow Primetime Michael Jordan</strong>. Combine 3 copies of any 99 OVR card to forge a <strong>100 OVR</strong> card!
                     </p>
                   </div>
 
@@ -739,11 +1133,11 @@ export function App() {
                       Play CPU Showdown
                     </button>
                     <button
-                      onClick={() => setPackTab('LEADERBOARD')}
+                      onClick={() => setPackTab('MILESTONES')}
                       className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-sport font-extrabold text-base uppercase tracking-wider flex items-center gap-2 border border-slate-700 transition"
                     >
-                      <Trophy className="w-5 h-5 text-amber-400" />
-                      Leaderboards
+                      <Award className="w-5 h-5 text-amber-400" />
+                      Milestones
                     </button>
                   </div>
                 </div>
@@ -754,7 +1148,7 @@ export function App() {
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-extrabold uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-amber-400" />
-                        PRIMETIME RAINBOW JACKPOT METER (ULTRA-RARE 0.1% – 3.5% PACK ODDS)
+                        PRIMETIME RAINBOW JACKPOT METER (ULTRA-RARE 0.1% – 2.9% PACK ODDS)
                       </span>
                       <span className="font-sport font-extrabold text-sm text-white">
                         {jackpotCharges} / {JACKPOT_TARGET} CHARGES
@@ -772,7 +1166,7 @@ export function App() {
                       />
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1.5">
-                      98–99 Rainbow Primetime cards are ultra-rare jackpot pulls! Every pack you rip charges this meter (+1 to +5)—fill it to <strong>{JACKPOT_TARGET}/{JACKPOT_TARGET}</strong> for a guaranteed 98–99 Rainbow Icon!
+                      98–99 Rainbow Primetime cards are ultra-rare jackpot pulls (2.9% in the Primetime Chase Vault)! Every pack you rip charges this meter (+1 to +5)—fill it to <strong>{JACKPOT_TARGET}/{JACKPOT_TARGET}</strong> for a guaranteed 98–99 Rainbow Icon!
                     </p>
                   </div>
 
@@ -954,7 +1348,7 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Collection Binder + Duplicate Quick-Sell & Combine (+1 OVR Evo) */}
+                {/* Collection Binder + Duplicate Quick-Sell & Combine (+1 OVR Evo, including 3x 99 -> 100 OVR!) */}
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -962,7 +1356,7 @@ export function App() {
                         COLLECTION BINDER ({ownedCardsList.length} Unique Editions Owned)
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Sell extra duplicates for Coins, or combine 3 copies to permanently boost a card by +1 OVR!
+                        Sell extra duplicates for Coins, combine 3 copies for +1 OVR, or combine 3 copies of a <strong>99 OVR</strong> card to forge a <strong>100 OVR</strong> card!
                       </p>
                     </div>
                   </div>
@@ -972,6 +1366,11 @@ export function App() {
                       const inLineupSlot = (
                         Object.keys(lineupIds) as LineupSlot[]
                       ).find((s) => lineupIds[s] === card.id);
+
+                      const canCombine =
+                        owned.quantity >= 3 &&
+                        (card.ovr + owned.evoBonus < 99 ||
+                          (card.ovr + owned.evoBonus === 99 && card.ovr === 99));
 
                       return (
                         <div
@@ -1021,16 +1420,17 @@ export function App() {
                                 </button>
                               )}
 
-                              {owned.quantity >= 3 &&
-                                card.ovr + owned.evoBonus < 99 && (
-                                  <button
-                                    onClick={() => handleCombineEvo(card.id)}
-                                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-extrabold flex items-center justify-center gap-1 transition"
-                                  >
-                                    <ArrowUpCircle className="w-3.5 h-3.5" />
-                                    Evo +1 OVR (3x)
-                                  </button>
-                                )}
+                              {canCombine && (
+                                <button
+                                  onClick={() => handleCombineEvo(card.id)}
+                                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-extrabold flex items-center justify-center gap-1 transition"
+                                >
+                                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                                  {card.ovr + owned.evoBonus === 99
+                                    ? 'Forge 100 OVR! (3x)'
+                                    : 'Evo +1 OVR (3x)'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1049,6 +1449,8 @@ export function App() {
                 franchiseTeam={franchiseTeam}
                 standings={leagueStandings}
                 useFranchiseJersey={useFranchiseJersey}
+                userTeamOvr={teamOvr}
+                userWins={userRecord.wins}
                 onInspectCard={(card) => setInspectedCard(card)}
                 onJumpToLeaderboard={() => setPackTab('LEADERBOARD')}
                 onCompleteGame={(result) => {
@@ -1170,6 +1572,96 @@ export function App() {
                 useFranchiseJersey={useFranchiseJersey}
                 onInspectCard={(card) => setInspectedCard(card)}
               />
+            )}
+
+            {/* ==================== PACK MODE TAB 5: MILESTONES & TROPHIES ==================== */}
+            {packTab === 'MILESTONES' && (
+              <div className="space-y-6">
+                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase mb-1">
+                      <Award className="w-3.5 h-3.5" /> Franchise Milestones & Trophy Rewards
+                    </div>
+                    <h2 className="font-sport font-extrabold text-2xl sm:text-3xl text-white">
+                      COMPLETE GOALS TO CLAIM COINS & RAINBOW JACKPOT CHARGES
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Every milestone you claim is permanently saved to your logged-in GM profile ({gmName}).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {milestonesList.map((m) => {
+                    const isClaimed = claimedMilestones.includes(m.id);
+                    return (
+                      <div
+                        key={m.id}
+                        className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition ${
+                          isClaimed
+                            ? 'bg-slate-900/50 border-emerald-500/30'
+                            : m.unlocked
+                            ? 'bg-slate-900 border-amber-400 ring-1 ring-amber-400/30'
+                            : 'bg-slate-900/90 border-slate-800'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <h3 className="font-sport font-extrabold text-xl text-white">
+                              {m.title}
+                            </h3>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                isClaimed
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : m.unlocked
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {isClaimed
+                                ? 'CLAIMED'
+                                : m.unlocked
+                                ? 'READY TO CLAIM!'
+                                : m.progressText}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300">{m.description}</p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                          <div className="flex items-center gap-2 text-xs font-extrabold">
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              +{m.rewardCoins.toLocaleString()} Coins
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30">
+                              +{m.rewardCharges} Rainbow Charges
+                            </span>
+                          </div>
+
+                          {isClaimed ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-400 uppercase">
+                              <CheckCircle2 className="w-4 h-4" /> Reward Claimed
+                            </span>
+                          ) : (
+                            <button
+                              disabled={!m.unlocked}
+                              onClick={() => handleClaimMilestone(m.id)}
+                              className={`px-4 py-2 rounded-xl font-sport font-extrabold text-sm uppercase tracking-wider transition ${
+                                m.unlocked
+                                  ? 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 shadow-lg cursor-pointer'
+                                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                              }`}
+                            >
+                              {m.unlocked ? 'Claim Reward' : 'Locked'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </>
         )}
@@ -1299,6 +1791,21 @@ export function App() {
           setUseFranchiseJersey(wearJersey);
         }}
         onClose={() => setIsStudioOpen(false)}
+      />
+
+      {/* ==================== OPTION 1 GM ACCOUNT, AUTO-SAVE & BACKUP CODE MODAL ==================== */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        activeProfileId={activeProfileId}
+        currentGmName={gmName}
+        profiles={savedProfileSummaries}
+        onClose={() => setIsAccountModalOpen(false)}
+        onUpdateGmName={(newName) => setGmName(newName)}
+        onSwitchProfile={handleSwitchProfile}
+        onCreateNewProfile={handleCreateNewProfile}
+        onDeleteProfile={handleDeleteProfile}
+        onExportSaveCode={handleExportSaveCode}
+        onImportSaveCode={handleImportSaveCode}
       />
     </div>
   );
