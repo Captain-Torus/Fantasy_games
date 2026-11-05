@@ -42,7 +42,7 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
   onInspectCard,
 }) => {
   const [subTab, setSubTab] = useState<'PLAYERS' | 'TEAMS' | 'GALLERY'>('PLAYERS');
-  const [sortBy, setSortBy] = useState<'OVR' | 'PPG' | 'RPG' | 'APG' | 'CLUTCH'>('OVR');
+  const [sortBy, setSortBy] = useState<'OVR' | 'PTS' | 'PPG' | 'RPG' | 'APG' | 'CLUTCH'>('PTS');
   const [tierFilter, setTierFilter] = useState<'ALL' | CardTier>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -105,6 +105,7 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
           evoBonus,
           effectiveOvr,
           games,
+          totalPoints: owned?.totalPoints ?? 0,
           ppg,
           rpg,
           apg,
@@ -112,6 +113,8 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
         };
       })
       .sort((a, b) => {
+        if (sortBy === 'PTS')
+          return b.totalPoints - a.totalPoints || b.ppg - a.ppg || b.effectiveOvr - a.effectiveOvr;
         if (sortBy === 'PPG') return b.ppg - a.ppg || b.effectiveOvr - a.effectiveOvr;
         if (sortBy === 'RPG') return b.rpg - a.rpg || b.effectiveOvr - a.effectiveOvr;
         if (sortBy === 'APG') return b.apg - a.apg || b.effectiveOvr - a.effectiveOvr;
@@ -215,7 +218,7 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
           {/* Sort Metric */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-slate-400">Rank By:</span>
-            {(['OVR', 'PPG', 'RPG', 'APG', 'CLUTCH'] as const).map((metric) => (
+            {(['PTS', 'PPG', 'RPG', 'APG', 'CLUTCH', 'OVR'] as const).map((metric) => (
               <button
                 key={metric}
                 onClick={() => setSortBy(metric)}
@@ -243,7 +246,8 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
                   <th className="py-3.5 px-4">Player & Number</th>
                   <th className="py-3.5 px-4">Card Edition & Finish</th>
                   <th className="py-3.5 px-4 text-center">OVR</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-center">GP</th>
+                  <th className="py-3.5 px-4 text-right">TOT PTS</th>
                   <th className="py-3.5 px-4 text-right">PPG</th>
                   <th className="py-3.5 px-4 text-right">RPG</th>
                   <th className="py-3.5 px-4 text-right">APG</th>
@@ -305,16 +309,11 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      {row.isOwned ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          Owned ×{row.quantity}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-500 font-semibold">
-                          In Packs / Draft
-                        </span>
-                      )}
+                    <td className="py-3 px-4 text-center font-sport font-bold text-slate-300">
+                      {row.games}
+                    </td>
+                    <td className="py-3 px-4 text-right font-sport font-extrabold text-base text-amber-300">
+                      {row.totalPoints}
                     </td>
                     <td className="py-3 px-4 text-right font-sport font-extrabold text-base text-rose-400">
                       {row.ppg.toFixed(1)}

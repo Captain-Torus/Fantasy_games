@@ -169,13 +169,47 @@ export function App() {
     null
   );
 
-  // League Team Standings State
+  // League Team Standings State (Both User & CPU Franchises are stateful and update after every game!)
   const [userRecord, setUserRecord] = useState({
     wins: 4,
     losses: 1,
     pointsFor: 512,
     pointsAgainst: 468,
     championships: 1,
+  });
+
+  const [cpuRecords, setCpuRecords] = useState<
+    Record<
+      string,
+      {
+        wins: number;
+        losses: number;
+        pointsFor: number;
+        pointsAgainst: number;
+        championships: number;
+      }
+    >
+  >(() => {
+    const init: Record<
+      string,
+      {
+        wins: number;
+        losses: number;
+        pointsFor: number;
+        pointsAgainst: number;
+        championships: number;
+      }
+    > = {};
+    REAL_NBA_TEAMS.forEach((t, idx) => {
+      init[t.id] = {
+        wins: Math.max(1, 5 - (idx % 4)),
+        losses: 1 + (idx % 4),
+        pointsFor: 540 - idx * 14,
+        pointsAgainst: 515 - idx * 10,
+        championships: idx < 2 ? 1 : 0,
+      };
+    });
+    return init;
   });
 
   const cardById = (id: string): PlayerCardTemplate =>
@@ -213,22 +247,31 @@ export function App() {
   const leagueStandings: LeagueTeamStanding[] = useMemo(() => {
     const cpuBase: LeagueTeamStanding[] = REAL_NBA_TEAMS.filter(
       (t) => t.id !== franchiseTeam.id
-    ).map((t, idx) => ({
-      id: t.id,
-      city: t.city,
-      name: t.name,
-      abbreviation: t.abbreviation,
-      primaryColor: t.primaryColor,
-      secondaryColor: t.secondaryColor,
-      isUser: false,
-      wins: Math.max(1, 6 - (idx % 5)),
-      losses: 1 + (idx % 5),
-      pointsFor: 620 - idx * 18,
-      pointsAgainst: 590 - idx * 10,
-      teamOvr: 93 - idx,
-      collectionScore: 9800 - idx * 720,
-      championships: idx < 2 ? 1 : 0,
-    }));
+    ).map((t, idx) => {
+      const rec = cpuRecords[t.id] || {
+        wins: 3,
+        losses: 2,
+        pointsFor: 500,
+        pointsAgainst: 490,
+        championships: 0,
+      };
+      return {
+        id: t.id,
+        city: t.city,
+        name: t.name,
+        abbreviation: t.abbreviation,
+        primaryColor: t.primaryColor,
+        secondaryColor: t.secondaryColor,
+        isUser: false,
+        wins: rec.wins,
+        losses: rec.losses,
+        pointsFor: rec.pointsFor,
+        pointsAgainst: rec.pointsAgainst,
+        teamOvr: 94 - idx,
+        collectionScore: 9800 - idx * 720,
+        championships: rec.championships,
+      };
+    });
 
     const userStanding: LeagueTeamStanding = {
       id: franchiseTeam.id,
@@ -248,7 +291,7 @@ export function App() {
     };
 
     return [userStanding, ...cpuBase];
-  }, [franchiseTeam, userRecord, teamOvr, collectionScore]);
+  }, [franchiseTeam, userRecord, cpuRecords, teamOvr, collectionScore]);
 
   // Pack Roll Generator
   const rollCardFromPool = (
@@ -919,38 +962,113 @@ export function App() {
                 lineupCards={lineupCards}
                 ownedMap={ownedMap}
                 franchiseTeam={franchiseTeam}
+                standings={leagueStandings}
                 useFranchiseJersey={useFranchiseJersey}
                 onInspectCard={(card) => setInspectedCard(card)}
+                onJumpToLeaderboard={() => setPackTab('LEADERBOARD')}
                 onCompleteGame={(result) => {
+                  // 1. Credit Coins
                   setCoins((c) => c + result.coinsEarned);
+
+                  // 2. Update User Team Standing
                   setUserRecord((prev) => ({
                     wins: prev.wins + (result.won ? 1 : 0),
                     losses: prev.losses + (result.won ? 0 : 1),
                     pointsFor: prev.pointsFor + result.userScore,
                     pointsAgainst: prev.pointsAgainst + result.cpuScore,
                     championships:
-                      prev.championships +
-                      (result.won && result.coinsEarned >= 1200 ? 1 : 0),
+                      prev.championships + (result.bonusChampionship ? 1 : 0),
                   }));
 
-                  // Accumulate per-player stats for the Detailed Leaderboard!
+                  // 3. Update CPU Opponent Standing (plus any simulated Bracket CPU matchups)
+                  setCpuRecords((prev) => {
+                    const next = { ...prev };
+                    const opp = next[result.cpuTeamId] || {
+                      wins: 3,
+                      losses: 2,
+                      pointsFor: 500,
+                      pointsAgainst: 490,
+                      championships: 0,
+                    };
+                    next[result.cpuTeamId] = {
+                      ...opp,
+                      wins: opp.wins + (result.won ? 0 : 1),
+                      losses: opp.losses + (result.won ? 1 : 0),
+                      pointsFor: opp.pointsFor + result.cpuScore,
+                      pointsAgainst: opp.pointsAgainst + result.userScore,
+                    };
+
+                    if (result.otherCpuResults) {
+                      result.otherCpuResults.forEach((sim) => {
+                        if (next[sim.winnerId]) {
+                          next[sim.winnerId] = {
+                            ...next[sim.winnerId],
+                            wins: next[sim.winnerId].wins + 1,
+                            pointsFor: next[sim.winnerId].pointsFor + sim.winnerPts,
+                            pointsAgainst:
+                              next[sim.winnerId].pointsAgainst + sim.loserPts,
+                          };
+                        }
+                        if (next[sim.loserId]) {
+                          next[sim.loserId] = {
+                            ...next[sim.loserId],
+                            losses: next[sim.loserId].losses + 1,
+                            pointsFor: next[sim.loserId].pointsFor + sim.loserPts,
+                            pointsAgainst:
+                              next[sim.loserId].pointsAgainst + sim.winnerPts,
+                          };
+                        }
+                      });
+                    }
+                    return next;
+                  });
+
+                  // 4. Accumulate Per-Player Box Score Stats & Award Bonus Trophy Card if Won!
                   setOwnedMap((prev) => {
                     const next = { ...prev };
                     Object.entries(result.playerStats).forEach(([cardId, st]) => {
-                      const existing = next[cardId];
-                      if (existing) {
-                        next[cardId] = {
-                          ...existing,
-                          gamesPlayed: existing.gamesPlayed + 1,
-                          totalPoints: existing.totalPoints + st.pts,
-                          totalRebounds: existing.totalRebounds + st.reb,
-                          totalAssists: existing.totalAssists + st.ast,
-                          clutchPlaysWon: existing.clutchPlaysWon + st.clutchWon,
-                          clutchPlaysTotal:
-                            existing.clutchPlaysTotal + st.clutchTotal,
-                        };
-                      }
+                      if (!st.played && st.pts === 0) return;
+                      const existing = next[cardId] || {
+                        cardId,
+                        quantity: 1,
+                        evoBonus: 0,
+                        gamesPlayed: 0,
+                        totalPoints: 0,
+                        totalRebounds: 0,
+                        totalAssists: 0,
+                        clutchPlaysWon: 0,
+                        clutchPlaysTotal: 0,
+                      };
+                      next[cardId] = {
+                        ...existing,
+                        gamesPlayed: existing.gamesPlayed + 1,
+                        totalPoints: existing.totalPoints + st.pts,
+                        totalRebounds: existing.totalRebounds + st.reb,
+                        totalAssists: existing.totalAssists + st.ast,
+                        clutchPlaysWon: existing.clutchPlaysWon + st.clutchWon,
+                        clutchPlaysTotal:
+                          existing.clutchPlaysTotal + st.clutchTotal,
+                      };
                     });
+
+                    if (result.bonusCardAwarded) {
+                      const bId = result.bonusCardAwarded.id;
+                      const ex = next[bId];
+                      next[bId] = ex
+                        ? { ...ex, quantity: ex.quantity + 1 }
+                        : {
+                            cardId: bId,
+                            quantity: 1,
+                            evoBonus: 0,
+                            gamesPlayed: 0,
+                            totalPoints: 0,
+                            totalRebounds: 0,
+                            totalAssists: 0,
+                            clutchPlaysWon: 0,
+                            clutchPlaysTotal: 0,
+                          };
+                    }
+
                     return next;
                   });
                 }}

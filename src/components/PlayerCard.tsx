@@ -14,6 +14,7 @@ interface PlayerCardProps {
   quantity?: number;
   stamina?: number; // 0 to 100 in Tactical Showdowns
   onCooldown?: boolean;
+  cooldownTurns?: number;
   useFranchiseJersey?: boolean;
   franchiseTeam?: TeamIdentity;
   size?: 'sm' | 'md' | 'lg';
@@ -92,6 +93,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   quantity,
   stamina,
   onCooldown = false,
+  cooldownTurns = 0,
   useFranchiseJersey = false,
   franchiseTeam,
   size = 'md',
@@ -411,9 +413,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
           {/* Cooldown / Stamina Overlay in Tactical Showdown */}
           {onCooldown && (
-            <div className="absolute inset-0 z-30 bg-slate-950/70 backdrop-blur-[1px] flex items-center justify-center">
+            <div className="absolute inset-0 z-30 bg-slate-950/75 backdrop-blur-[1px] flex flex-col items-center justify-center p-2 text-center">
               <span className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-extrabold text-xs tracking-wider uppercase shadow-lg">
-                RESTING (1 PLAY)
+                COOLDOWN: {cooldownTurns > 0 ? `${cooldownTurns} PLAY${cooldownTurns > 1 ? 'S' : ''}` : 'RESTING'}
+              </span>
+              <span className="text-[10px] font-bold text-amber-200 mt-1">
+                Higher Tier = Longer Rest
               </span>
             </div>
           )}
