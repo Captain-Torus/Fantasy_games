@@ -622,9 +622,10 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     updatedBox: typeof boxScore
   ) => {
     const userWonGame = finalUserScore > finalCpuScore;
+    // Winning awards +winCoins; losing a game COSTS -lossCoins!
     let earnedCoins = userWonGame
       ? selectedOpponent.winCoins
-      : selectedOpponent.lossCoins;
+      : -selectedOpponent.lossCoins;
     let bonusNote: string | undefined;
     let bonusCard: PlayerCardTemplate | undefined;
     let bonusChampionship = false;
@@ -635,7 +636,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       loserPts: number;
     }[] = [];
 
-    // 1. Handle Set Series progression & Series Bonus Reward
+    // 1. Handle Set Series progression & Series Bonus Reward / Loss Cost
     if (!isBracketGame && activeSeries) {
       const nextUWins = activeSeries.userSeriesWins + (userWonGame ? 1 : 0);
       const nextCWins = activeSeries.cpuSeriesWins + (userWonGame ? 0 : 1);
@@ -653,7 +654,9 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         bonusCard = highTierPool[Math.floor(Math.random() * highTierPool.length)];
         bonusNote = `SERIES CLINCHED (${nextUWins}–${nextCWins})! +${seriesBonus} Series Bonus Coins + Free ${bonusCard.editionTitle} ${bonusCard.lastName} (${bonusCard.ovr} OVR)!`;
       } else if (seriesDone) {
-        bonusNote = `Series Finished (${nextUWins}–${nextCWins}).`;
+        const seriesLossPenalty = activeSeries.targetWins > 1 ? 400 : 0;
+        earnedCoins -= seriesLossPenalty;
+        bonusNote = `Series Lost (${nextUWins}–${nextCWins}). Total Loss Cost: ${earnedCoins} Coins.`;
       }
 
       setActiveSeries({
@@ -1161,8 +1164,14 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                       <h3 className="font-sport font-extrabold text-xl text-white">
                         {team.city} {team.name}
                       </h3>
-                      <div className="text-xs font-bold text-amber-400 mt-0.5">
-                        +{team.winCoins.toLocaleString()} Coins / Win
+                      <div className="flex items-center gap-2 text-xs font-bold mt-1">
+                        <span className="text-emerald-400">
+                          Win: +{team.winCoins.toLocaleString()}
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className="text-rose-400">
+                          Loss: -{team.lossCoins.toLocaleString()} Coins
+                        </span>
                       </div>
 
                       <div className="mt-3 space-y-1">
@@ -1796,10 +1805,17 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <div className="px-4 py-2.5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300 font-sport font-extrabold text-xl flex items-center gap-2">
-                <Coins className="w-5 h-5" />+
-                {(lastRewardSummary?.coinsEarned ?? selectedOpponent.winCoins).toLocaleString()}{' '}
-                COINS ADDED!
+              <div
+                className={`px-4 py-2.5 rounded-2xl font-sport font-extrabold text-xl flex items-center gap-2 border ${
+                  (lastRewardSummary?.coinsEarned ?? 0) >= 0
+                    ? 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+                    : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                }`}
+              >
+                <Coins className="w-5 h-5" />
+                {(lastRewardSummary?.coinsEarned ?? 0) >= 0
+                  ? `+${(lastRewardSummary?.coinsEarned ?? selectedOpponent.winCoins).toLocaleString()} COINS ADDED!`
+                  : `${(lastRewardSummary?.coinsEarned ?? -selectedOpponent.lossCoins).toLocaleString()} COINS LOST!`}
               </div>
 
               <button

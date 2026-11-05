@@ -63,8 +63,8 @@ export function App() {
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
   // Pack Mode Economy & Owned Collection Binder
-  // Start with a fun starter rotation + 100,000 Coins so the user can immediately rip Legends/Primetime packs!
-  const [coins, setCoins] = useState<number>(100000);
+  // Start with a fun starter rotation + 7,500 Coins!
+  const [coins, setCoins] = useState<number>(7500);
   const [ownedMap, setOwnedMap] = useState<Record<string, OwnedCard>>({
     'trae-base-84': {
       cardId: 'trae-base-84',
@@ -587,12 +587,12 @@ export function App() {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCoins((c) => c + 100000)}
+                  onClick={() => setCoins(7500)}
                   className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition"
-                  title="Claim Free Bonus Coins"
+                  title="Reset Coin Balance to 7,500"
                 >
                   <Gift className="w-3.5 h-3.5" />
-                  +100,000 Bonus Coins
+                  Set 7,500 Coins
                 </button>
               </>
             )}
@@ -967,8 +967,8 @@ export function App() {
                 onInspectCard={(card) => setInspectedCard(card)}
                 onJumpToLeaderboard={() => setPackTab('LEADERBOARD')}
                 onCompleteGame={(result) => {
-                  // 1. Credit Coins
-                  setCoins((c) => c + result.coinsEarned);
+                  // 1. Credit Coins on Win OR Deduct Coins on Loss!
+                  setCoins((c) => Math.max(0, c + result.coinsEarned));
 
                   // 2. Update User Team Standing
                   setUserRecord((prev) => ({
