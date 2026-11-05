@@ -190,6 +190,17 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
         clutchPlaysWon: 2,
         clutchPlaysTotal: 3,
       },
+      'curry-primetime-99': {
+        cardId: 'curry-primetime-99',
+        quantity: 3,
+        evoBonus: 0,
+        gamesPlayed: 2,
+        totalPoints: 68,
+        totalRebounds: 10,
+        totalAssists: 18,
+        clutchPlaysWon: 2,
+        clutchPlaysTotal: 2,
+      },
     },
     lineupIds: {
       PG: 'trae-base-84',
@@ -219,6 +230,7 @@ function loadInitialProfiles(): {
     const raw = localStorage.getItem(STORAGE_PROFILES_KEY);
     const activeRaw = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
     const migrated = localStorage.getItem('primetime_dynasty_realistic_default_v1');
+    const curryGranted = localStorage.getItem('primetime_dynasty_curry_grant_v1');
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, FullSavedProfile>;
       const ids = Object.keys(parsed);
@@ -230,13 +242,41 @@ function loadInitialProfiles(): {
             }
           });
           localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
-          localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(parsed));
         }
+        if (!curryGranted) {
+          ids.forEach((k) => {
+            const om = parsed[k].ownedMap || {};
+            ['curry-primetime-99', 'curry-legends-96', 'curry-elite-93'].forEach(
+              (cid) => {
+                if (om[cid] && om[cid].quantity > 0) {
+                  om[cid] = { ...om[cid], quantity: om[cid].quantity + 2 };
+                }
+              }
+            );
+            if (!om['curry-primetime-99'] || om['curry-primetime-99'].quantity < 3) {
+              om['curry-primetime-99'] = {
+                cardId: 'curry-primetime-99',
+                quantity: 3,
+                evoBonus: om['curry-primetime-99']?.evoBonus ?? 0,
+                gamesPlayed: om['curry-primetime-99']?.gamesPlayed ?? 2,
+                totalPoints: om['curry-primetime-99']?.totalPoints ?? 68,
+                totalRebounds: om['curry-primetime-99']?.totalRebounds ?? 10,
+                totalAssists: om['curry-primetime-99']?.totalAssists ?? 18,
+                clutchPlaysWon: om['curry-primetime-99']?.clutchPlaysWon ?? 2,
+                clutchPlaysTotal: om['curry-primetime-99']?.clutchPlaysTotal ?? 2,
+              };
+            }
+            parsed[k].ownedMap = om;
+          });
+          localStorage.setItem('primetime_dynasty_curry_grant_v1', 'true');
+        }
+        localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(parsed));
         const chosenId = activeRaw && parsed[activeRaw] ? activeRaw : ids[0];
         return { profiles: parsed, activeId: chosenId };
       }
     }
     localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
+    localStorage.setItem('primetime_dynasty_curry_grant_v1', 'true');
   } catch (e) {
     console.warn('Could not load saved profiles from localStorage:', e);
   }
