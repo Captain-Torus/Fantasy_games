@@ -278,6 +278,20 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
   >([]);
 
   const [gameFinished, setGameFinished] = useState(false);
+  const [cpuPlayOrder, setCpuPlayOrder] = useState<string[]>([]);
+  const [revealedPlayResult, setRevealedPlayResult] = useState<{
+    userCard: PlayerCardTemplate;
+    userSlot: LineupSlot;
+    userStaminaAtPlay: number;
+    cpuCard: PlayerCardTemplate;
+    wonPlay: boolean;
+    userPower: number;
+    cpuPower: number;
+    userPointsAdded: number;
+    cpuPointsAdded: number;
+    narrative: string;
+    isLastPlay: boolean;
+  } | null>(null);
 
   const slotsOrder: LineupSlot[] = ['PG', 'SG', 'SF', 'PF', 'C', 'SIXTH'];
 
@@ -285,9 +299,16 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     setSelectedChallenge(challenge);
     setInProgress(true);
     setGameFinished(false);
+    setRevealedPlayResult(null);
     setPlayIndex(0);
     setUserScore(0);
     setCpuScore(0);
+    // Shuffle 8 CPU cards for the 8 plays so the CPU deployment is a genuine surprise
+    const pool = [...challenge.rosterIds, ...challenge.rosterIds];
+    const shuffled = pool
+      .slice(0, PLAY_SCENARIOS.length)
+      .sort(() => Math.random() - 0.5);
+    setCpuPlayOrder(shuffled);
     setStaminaBySlot({
       PG: 100,
       SG: 100,
@@ -312,11 +333,27 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
   const currentScenario = PLAY_SCENARIOS[playIndex];
   const cpuCardId =
+    cpuPlayOrder[playIndex] ||
     selectedChallenge.rosterIds[playIndex % selectedChallenge.rosterIds.length];
   const cpuCard =
     NBA_PLAYER_CARDS.find((c) => c.id === cpuCardId) || NBA_PLAYER_CARDS[0];
 
+  const advanceAfterReveal = () => {
+    if (!revealedPlayResult) return;
+    if (revealedPlayResult.isLastPlay) {
+      setRevealedPlayResult(null);
+      setGameFinished(true);
+    } else {
+      setRevealedPlayResult(null);
+      setPlayIndex((p) => p + 1);
+    }
+  };
+
   const executePlay = () => {
+    if (revealedPlayResult) {
+      advanceAfterReveal();
+      return;
+    }
     const userCard = lineupCards[selectedSlot];
     const evo = ownedMap[userCard.id]?.evoBonus ?? 0;
     const currentStamina = staminaBySlot[selectedSlot];
@@ -374,8 +411,10 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     let finalUserScore = userScore + userPointsAdded;
     let finalCpuScore = cpuScore + cpuPointsAdded;
 
+    const isLastPlay = playIndex + 1 >= PLAY_SCENARIOS.length;
+
     // Prevent exact tie on Play 8 (Overtime sudden-death edge to Play 8 winner)
-    if (playIndex === PLAY_SCENARIOS.length - 1 && finalUserScore === finalCpuScore) {
+    if (isLastPlay && finalUserScore === finalCpuScore) {
       if (wonPlay) finalUserScore += 2;
       else finalCpuScore += 2;
     }
@@ -438,8 +477,22 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     setUserScore(finalUserScore);
     setCpuScore(finalCpuScore);
 
-    if (playIndex + 1 >= PLAY_SCENARIOS.length) {
-      setGameFinished(true);
+    // Reveal the CPU card and play outcome!
+    setRevealedPlayResult({
+      userCard,
+      userSlot: selectedSlot,
+      userStaminaAtPlay: currentStamina,
+      cpuCard,
+      wonPlay,
+      userPower,
+      cpuPower,
+      userPointsAdded,
+      cpuPointsAdded,
+      narrative,
+      isLastPlay,
+    });
+
+    if (isLastPlay) {
       const userWonGame = finalUserScore > finalCpuScore;
       const earned = userWonGame
         ? selectedChallenge.winCoins
@@ -459,8 +512,6 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         coinsEarned: earned,
         playerStats: updatedBox,
       });
-    } else {
-      setPlayIndex(playIndex + 1);
     }
   };
 
@@ -692,6 +743,15 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                         size="sm"
                         actionBadge={isChosen ? 'DEPLOYING' : undefined}
                         onClick={() => {
+                          if (revealedPlayResult) {
+                            // If a play result was showing, clicking a rotation card advances to the next play & selects that card!
+                            if (!revealedPlayResult.isLastPlay && !isCooling) {
+                              setRevealedPlayResult(null);
+                              setPlayIndex((p) => p + 1);
+                              setSelectedSlot(slot);
+                            }
+                            return;
+                          }
                           if (!isCooling) {
                             setSelectedSlot(slot);
                           }
@@ -708,7 +768,9 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
           <div className="lg:col-span-5 space-y-4">
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center">
               <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 mb-3">
-                HEAD-TO-HEAD PLAY MATCHUP
+                {revealedPlayResult
+                  ? `PLAY #${currentScenario.playNumber} REVEALED RESULT`
+                  : `HEAD-TO-HEAD PLAY #${currentScenario.playNumber} MATCHUP`}
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
@@ -717,13 +779,34 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                     YOUR DEPLOYED CARD
                   </span>
                   <PlayerCard
-                    card={lineupCards[selectedSlot]}
-                    evoBonus={ownedMap[lineupCards[selectedSlot].id]?.evoBonus ?? 0}
-                    stamina={staminaBySlot[selectedSlot]}
+                    card={
+                      revealedPlayResult
+                        ? revealedPlayResult.userCard
+                        : lineupCards[selectedSlot]
+                    }
+                    evoBonus={
+                      ownedMap[
+                        (revealedPlayResult
+                          ? revealedPlayResult.userCard
+                          : lineupCards[selectedSlot]
+                        ).id
+                      ]?.evoBonus ?? 0
+                    }
+                    stamina={
+                      revealedPlayResult
+                        ? revealedPlayResult.userStaminaAtPlay
+                        : staminaBySlot[selectedSlot]
+                    }
                     useFranchiseJersey={useFranchiseJersey}
                     franchiseTeam={franchiseTeam}
                     size="sm"
-                    onClick={() => onInspectCard(lineupCards[selectedSlot])}
+                    onClick={() =>
+                      onInspectCard(
+                        revealedPlayResult
+                          ? revealedPlayResult.userCard
+                          : lineupCards[selectedSlot]
+                      )
+                    }
                   />
                 </div>
 
@@ -733,23 +816,92 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] font-bold text-rose-400 uppercase mb-1">
-                    CPU DEPLOYED CARD
+                    {revealedPlayResult ? 'CPU REVEALED CARD' : 'CPU MYSTERY CARD'}
                   </span>
-                  <PlayerCard
-                    card={cpuCard}
-                    size="sm"
-                    onClick={() => onInspectCard(cpuCard)}
-                  />
+                  {revealedPlayResult ? (
+                    <PlayerCard
+                      card={revealedPlayResult.cpuCard}
+                      size="sm"
+                      onClick={() => onInspectCard(revealedPlayResult.cpuCard)}
+                    />
+                  ) : (
+                    /* Mystery Face-Down CPU Card Until "Run Play" Is Clicked */
+                    <div
+                      className="w-48 h-[276px] rounded-2xl p-[2px] shadow-xl select-none flex flex-col"
+                      style={{
+                        background: `linear-gradient(135deg, ${selectedChallenge.primaryColor}, #1e293b, ${selectedChallenge.primaryColor})`,
+                      }}
+                    >
+                      <div className="w-full h-full rounded-[14px] bg-slate-950 flex flex-col items-center justify-between p-4 relative overflow-hidden">
+                        <div className="shimmer-sweep absolute inset-0 opacity-40 pointer-events-none" />
+                        <div className="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 border-b border-slate-800 pb-1.5">
+                          <span>POS: ???</span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-rose-400">
+                            ??? OVR
+                          </span>
+                        </div>
+
+                        <div className="my-auto flex flex-col items-center text-center z-10">
+                          <div
+                            className="w-14 h-14 rounded-2xl flex items-center justify-center font-sport font-extrabold text-xl text-white shadow-lg border border-white/20 mb-3"
+                            style={{ backgroundColor: selectedChallenge.primaryColor }}
+                          >
+                            {selectedChallenge.abbr}
+                          </div>
+                          <div className="font-sport font-extrabold text-base text-white tracking-wider uppercase">
+                            CPU CARD HIDDEN
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                            Hit <strong>Run Play</strong> below to lock in your card and reveal the CPU matchup!
+                          </p>
+                        </div>
+
+                        <div className="w-full pt-2 border-t border-slate-800 text-center text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                          MYSTERY DEPLOYMENT
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* Outcome Banner Once CPU Card Is Revealed */}
+              {revealedPlayResult && (
+                <div
+                  className={`w-full mt-4 p-3 rounded-xl border text-center ${
+                    revealedPlayResult.wonPlay
+                      ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-950/50 border-rose-500/40 text-rose-200'
+                  }`}
+                >
+                  <div className="font-sport font-extrabold text-base uppercase">
+                    {revealedPlayResult.wonPlay ? 'PLAY WON!' : 'CPU WON PLAY'} • +
+                    {revealedPlayResult.userPointsAdded} to +
+                    {revealedPlayResult.cpuPointsAdded} PTS (Score:{' '}
+                    {revealedPlayResult.userPower} vs {revealedPlayResult.cpuPower})
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {revealedPlayResult.narrative}
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={executePlay}
-                className="w-full mt-5 py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 hover:brightness-110 text-slate-950 font-sport font-extrabold text-lg uppercase tracking-wider shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition"
+                className={`w-full mt-5 py-3.5 rounded-xl font-sport font-extrabold text-lg uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition ${
+                  revealedPlayResult
+                    ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-slate-950 shadow-amber-500/20'
+                    : 'bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 hover:brightness-110 text-slate-950 shadow-emerald-500/20'
+                }`}
               >
                 <Zap className="w-5 h-5 fill-current" />
-                Run Play #{currentScenario.playNumber}: {lineupCards[selectedSlot].lastName} vs.{' '}
-                {cpuCard.lastName}
+                {revealedPlayResult
+                  ? revealedPlayResult.isLastPlay
+                    ? 'View Final Buzzer & Box Score →'
+                    : `Continue to Play #${currentScenario.playNumber + 1} of ${
+                        PLAY_SCENARIOS.length
+                      } →`
+                  : `Run Play #${currentScenario.playNumber}: Deploy ${lineupCards[selectedSlot].lastName} vs. Mystery CPU`}
               </button>
             </div>
 
