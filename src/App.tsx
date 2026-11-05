@@ -63,8 +63,11 @@ export function App() {
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
   // Pack Mode Economy & Owned Collection Binder
-  // Start with a fun starter rotation + 7,500 Coins!
+  // Start with a fun Base/Core starter rotation + 7,500 Coins (no free 97/99 cards so pulling them is a huge rush!)
   const [coins, setCoins] = useState<number>(7500);
+  const [jackpotCharges, setJackpotCharges] = useState<number>(0);
+  const JACKPOT_TARGET = 35;
+
   const [ownedMap, setOwnedMap] = useState<Record<string, OwnedCard>>({
     'trae-base-84': {
       cardId: 'trae-base-84',
@@ -77,16 +80,16 @@ export function App() {
       clutchPlaysWon: 3,
       clutchPlaysTotal: 4,
     },
-    'mj-legends-97': {
-      cardId: 'mj-legends-97',
+    'mj-base-84': {
+      cardId: 'mj-base-84',
       quantity: 1,
       evoBonus: 0,
-      gamesPlayed: 5,
-      totalPoints: 168,
-      totalRebounds: 31,
-      totalAssists: 28,
-      clutchPlaysWon: 5,
-      clutchPlaysTotal: 5,
+      gamesPlayed: 4,
+      totalPoints: 118,
+      totalRebounds: 22,
+      totalAssists: 20,
+      clutchPlaysWon: 3,
+      clutchPlaysTotal: 4,
     },
     'jalen-johnson-base-83': {
       cardId: 'jalen-johnson-base-83',
@@ -132,23 +135,12 @@ export function App() {
       clutchPlaysWon: 2,
       clutchPlaysTotal: 3,
     },
-    'fict-blaze-primetime-99': {
-      cardId: 'fict-blaze-primetime-99',
-      quantity: 1,
-      evoBonus: 0,
-      gamesPlayed: 3,
-      totalPoints: 112,
-      totalRebounds: 15,
-      totalAssists: 34,
-      clutchPlaysWon: 3,
-      clutchPlaysTotal: 3,
-    },
   });
 
   // Active 6-Man Lineup
   const [lineupIds, setLineupIds] = useState<Record<LineupSlot, string>>({
     PG: 'trae-base-84',
-    SG: 'mj-legends-97',
+    SG: 'mj-base-84',
     SF: 'jalen-johnson-base-83',
     PF: 'jjj-base-84',
     C: 'naz-base-81',
@@ -340,11 +332,27 @@ export function App() {
 
     setCoins((c) => c - pack.priceCoins);
 
+    // Add Rainbow Jackpot Pity Meter charges so every pack brings you closer to a 98-99 Rainbow Icon!
+    const chargeGain =
+      pack.id === 'primetime-rainbow-pack'
+        ? 5
+        : pack.id === 'legends-shiny-pack'
+        ? 3
+        : pack.id === 'allstar-pack'
+        ? 2
+        : 1;
+
     const pulled: PlayerCardTemplate[] = [];
     for (let i = 0; i < pack.cardCount; i++) {
       const forceTier = i === pack.cardCount - 1 ? pack.guaranteedMinTier : undefined;
       pulled.push(rollCardFromPool(pack, forceTier));
     }
+
+    // If user naturally hit a 0.1% - 3.5% Rainbow Primetime card, reset meter; otherwise increment
+    const hitNaturalPrimetime = pulled.some((c) => c.tier === 'PRIMETIME');
+    setJackpotCharges((prev) =>
+      hitNaturalPrimetime ? 0 : Math.min(JACKPOT_TARGET, prev + chargeGain)
+    );
 
     // Add pulled cards to Owned Binder
     setOwnedMap((prev) => {
@@ -426,6 +434,40 @@ export function App() {
         quantity: prev[cardId].quantity - 1,
       },
     }));
+  };
+
+  const handleClaimJackpotPrimetime = () => {
+    if (jackpotCharges < JACKPOT_TARGET) return;
+    const pool = getCardsForUniverse(universe).filter((c) => c.tier === 'PRIMETIME');
+    const finalPool =
+      pool.length > 0
+        ? pool
+        : NBA_PLAYER_CARDS.filter((c) => c.tier === 'PRIMETIME');
+    const jackpotCard = finalPool[Math.floor(Math.random() * finalPool.length)];
+
+    setJackpotCharges(0);
+    setOwnedMap((prev) => {
+      const existing = prev[jackpotCard.id];
+      return {
+        ...prev,
+        [jackpotCard.id]: existing
+          ? { ...existing, quantity: existing.quantity + 1 }
+          : {
+              cardId: jackpotCard.id,
+              quantity: 1,
+              evoBonus: 0,
+              gamesPlayed: 0,
+              totalPoints: 0,
+              totalRebounds: 0,
+              totalAssists: 0,
+              clutchPlaysWon: 0,
+              clutchPlaysTotal: 0,
+            },
+      };
+    });
+
+    confetti({ particleCount: 130, spread: 85, origin: { y: 0.55 } });
+    setInspectedCard(jackpotCard);
   };
 
   const handleCombineEvo = (cardId: string) => {
@@ -704,6 +746,49 @@ export function App() {
                       Leaderboards
                     </button>
                   </div>
+                </div>
+
+                {/* Primetime Rainbow Jackpot Pity Meter */}
+                <div className="p-5 rounded-3xl bg-slate-900 border border-fuchsia-500/40 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        PRIMETIME RAINBOW JACKPOT METER (ULTRA-RARE 0.1% – 3.5% PACK ODDS)
+                      </span>
+                      <span className="font-sport font-extrabold text-sm text-white">
+                        {jackpotCharges} / {JACKPOT_TARGET} CHARGES
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-slate-950 border border-slate-800 overflow-hidden p-0.5">
+                      <div
+                        className="h-full rounded-full card-tier-primetime transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((jackpotCharges / JACKPOT_TARGET) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      98–99 Rainbow Primetime cards are ultra-rare jackpot pulls! Every pack you rip charges this meter (+1 to +5)—fill it to <strong>{JACKPOT_TARGET}/{JACKPOT_TARGET}</strong> for a guaranteed 98–99 Rainbow Icon!
+                    </p>
+                  </div>
+
+                  <button
+                    disabled={jackpotCharges < JACKPOT_TARGET}
+                    onClick={handleClaimJackpotPrimetime}
+                    className={`px-5 py-3 rounded-2xl font-sport font-extrabold text-sm uppercase tracking-wider shrink-0 transition ${
+                      jackpotCharges >= JACKPOT_TARGET
+                        ? 'card-tier-primetime text-slate-950 shadow-xl hover:scale-105 cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                    }`}
+                  >
+                    {jackpotCharges >= JACKPOT_TARGET
+                      ? '✨ CLAIM 98–99 RAINBOW JACKPOT! ✨'
+                      : `${JACKPOT_TARGET - jackpotCharges} Charges to Rainbow Guarantee`}
+                  </button>
                 </div>
 
                 {/* Pack Store Grid */}

@@ -647,11 +647,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         const seriesBonus = activeSeries.targetWins * 900;
         earnedCoins += seriesBonus;
         bonusChampionship = activeSeries.targetWins >= 2;
-        // Award a bonus Legends or Primetime card for winning a multi-game series!
-        const highTierPool = NBA_PLAYER_CARDS.filter(
-          (c) => c.tier === 'LEGENDS' || c.tier === 'PRIMETIME'
-        );
-        bonusCard = highTierPool[Math.floor(Math.random() * highTierPool.length)];
+        // Series Trophy Card: 90.5% All-Star/Elite, 8% Shiny Legend, 1.5% Rainbow Primetime Jackpot!
+        const roll = Math.random() * 100;
+        const targetTier: CardTier =
+          roll < 1.5 ? 'PRIMETIME' : roll < 9.5 ? 'LEGENDS' : roll < 50 ? 'ELITE' : 'ALL_STAR';
+        const tierPool = NBA_PLAYER_CARDS.filter((c) => c.tier === targetTier);
+        bonusCard = tierPool[Math.floor(Math.random() * tierPool.length)];
         bonusNote = `SERIES CLINCHED (${nextUWins}–${nextCWins})! +${seriesBonus} Series Bonus Coins + Free ${bonusCard.editionTitle} ${bonusCard.lastName} (${bonusCard.ovr} OVR)!`;
       } else if (seriesDone) {
         const seriesLossPenalty = activeSeries.targetWins > 1 ? 400 : 0;
@@ -799,9 +800,13 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         if (userWonGame) {
           earnedCoins += 5000;
           bonusChampionship = true;
-          const primetimePool = NBA_PLAYER_CARDS.filter((c) => c.tier === 'PRIMETIME');
-          bonusCard = primetimePool[Math.floor(Math.random() * primetimePool.length)];
-          bonusNote = `BRACKET FINALS CHAMPION! +5,000 Jackpot Coins + Championship Ring + Free 99 Primetime ${bonusCard.firstName} ${bonusCard.lastName}!`;
+          // Bracket Finals Trophy Card: 88% Shiny Holographic Legend (95-97), 12% Rainbow Primetime Jackpot (98-99)!
+          const hitRainbowJackpot = Math.random() < 0.12;
+          const trophyPool = NBA_PLAYER_CARDS.filter(
+            (c) => c.tier === (hitRainbowJackpot ? 'PRIMETIME' : 'LEGENDS')
+          );
+          bonusCard = trophyPool[Math.floor(Math.random() * trophyPool.length)];
+          bonusNote = `BRACKET FINALS CHAMPION! +5,000 Jackpot Coins + Championship Ring + Free ${bonusCard.editionTitle} ${bonusCard.firstName} ${bonusCard.lastName} (${bonusCard.ovr} OVR)!`;
           setBracketChampion(`${franchiseTeam.city} ${franchiseTeam.name}`);
           setBracketRound('CHAMPION');
         } else {
