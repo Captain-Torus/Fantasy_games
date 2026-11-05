@@ -63,8 +63,8 @@ export function App() {
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
   // Pack Mode Economy & Owned Collection Binder
-  // Start with a fun Base/Core starter rotation + 7,500 Coins (no free 97/99 cards so pulling them is a huge rush!)
-  const [coins, setCoins] = useState<number>(7500);
+  // Start with a fun Base/Core starter rotation + 15,000 Coins (no free 97/99 cards so pulling them is a huge rush!)
+  const [coins, setCoins] = useState<number>(15000);
   const [jackpotCharges, setJackpotCharges] = useState<number>(0);
   const JACKPOT_TARGET = 35;
 
@@ -629,12 +629,12 @@ export function App() {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCoins(7500)}
+                  onClick={() => setCoins(15000)}
                   className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition"
-                  title="Reset Coin Balance to 7,500"
+                  title="Reset Coin Balance to 15,000"
                 >
                   <Gift className="w-3.5 h-3.5" />
-                  Set 7,500 Coins
+                  Set 15,000 Coins
                 </button>
               </>
             )}
