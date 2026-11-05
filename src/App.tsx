@@ -63,8 +63,8 @@ export function App() {
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
   // Pack Mode Economy & Owned Collection Binder
-  // Start with a fun starter rotation + 2,800 Coins so the user can immediately rip Legends/Primetime packs!
-  const [coins, setCoins] = useState<number>(2800);
+  // Start with a fun starter rotation + 100,000 Coins so the user can immediately rip Legends/Primetime packs!
+  const [coins, setCoins] = useState<number>(100000);
   const [ownedMap, setOwnedMap] = useState<Record<string, OwnedCard>>({
     'trae-base-84': {
       cardId: 'trae-base-84',
@@ -544,12 +544,12 @@ export function App() {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCoins((c) => c + 1500)}
+                  onClick={() => setCoins((c) => c + 100000)}
                   className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition"
                   title="Claim Free Bonus Coins"
                 >
                   <Gift className="w-3.5 h-3.5" />
-                  +1,500 Bonus Coins
+                  +100,000 Bonus Coins
                 </button>
               </>
             )}
