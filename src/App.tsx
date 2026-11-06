@@ -91,6 +91,16 @@ const STORAGE_PROFILES_KEY = 'primetime_dynasty_profiles_v2';
 const STORAGE_ACTIVE_ID_KEY = 'primetime_dynasty_active_id_v2';
 
 function createDefaultCpuRecords() {
+  const presetRecords: Record<string, { wins: number; losses: number; pf: number; pa: number; rings: number }> = {
+    'sas-spurs': { wins: 6, losses: 1, pf: 788, pa: 710, rings: 1 },
+    'chi-bulls': { wins: 6, losses: 2, pf: 892, pa: 825, rings: 1 },
+    'gsw-warriors': { wins: 5, losses: 3, pf: 880, pa: 848, rings: 1 },
+    'bos-celtics': { wins: 5, losses: 4, pf: 985, pa: 960, rings: 1 },
+    'lal-lakers': { wins: 5, losses: 5, pf: 1090, pa: 1084, rings: 1 },
+    'phx-suns': { wins: 4, losses: 5, pf: 962, pa: 978, rings: 0 },
+    'mia-heat': { wins: 3, losses: 5, pf: 836, pa: 868, rings: 0 },
+    'atl-hawks': { wins: 2, losses: 6, pf: 820, pa: 885, rings: 0 },
+  };
   const init: Record<
     string,
     {
@@ -102,13 +112,22 @@ function createDefaultCpuRecords() {
     }
   > = {};
   REAL_NBA_TEAMS.forEach((t, idx) => {
-    init[t.id] = {
-      wins: Math.max(1, 5 - (idx % 4)),
-      losses: 1 + (idx % 4),
-      pointsFor: 540 - idx * 14,
-      pointsAgainst: 515 - idx * 10,
-      championships: idx < 2 ? 1 : 0,
-    };
+    const preset = presetRecords[t.id];
+    init[t.id] = preset
+      ? {
+          wins: preset.wins,
+          losses: preset.losses,
+          pointsFor: preset.pf,
+          pointsAgainst: preset.pa,
+          championships: preset.rings,
+        }
+      : {
+          wins: Math.max(1, 5 - (idx % 4)),
+          losses: 1 + (idx % 4),
+          pointsFor: 540 - idx * 14,
+          pointsAgainst: 515 - idx * 10,
+          championships: idx < 2 ? 1 : 0,
+        };
   });
   return init;
 }
@@ -231,6 +250,7 @@ function loadInitialProfiles(): {
     const activeRaw = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
     const migrated = localStorage.getItem('primetime_dynasty_realistic_default_v1');
     const curryGranted = localStorage.getItem('primetime_dynasty_curry_grant_v1');
+    const standingsSeeded = localStorage.getItem('primetime_dynasty_varied_standings_v1');
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, FullSavedProfile>;
       const ids = Object.keys(parsed);
@@ -242,6 +262,13 @@ function loadInitialProfiles(): {
             }
           });
           localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
+        }
+        if (!standingsSeeded) {
+          const variedCpu = createDefaultCpuRecords();
+          ids.forEach((k) => {
+            parsed[k].cpuRecords = variedCpu;
+          });
+          localStorage.setItem('primetime_dynasty_varied_standings_v1', 'true');
         }
         if (!curryGranted) {
           ids.forEach((k) => {

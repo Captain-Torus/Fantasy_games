@@ -472,6 +472,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     wonGame: boolean;
     bonusNote?: string;
     bonusCard?: PlayerCardTemplate;
+    leagueTicker?: {
+      winnerAbbr: string;
+      loserAbbr: string;
+      winnerPts: number;
+      loserPts: number;
+    }[];
   } | null>(null);
 
   const [gameFinished, setGameFinished] = useState(false);
@@ -833,11 +839,52 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       });
     }
 
+    // 3. Simulate Around-the-League CPU vs. CPU games whenever the user finishes a game
+    // so the League Standings & Rankings dynamically shift after every single game!
+    const alreadyPlayedIds = new Set<string>([
+      franchiseTeam.id,
+      selectedOpponent.id,
+      ...otherCpuResults.flatMap((r) => [r.winnerId, r.loserId]),
+    ]);
+    const availableCpuTeams = CPU_LEAGUE_TEAMS.filter(
+      (t) => !alreadyPlayedIds.has(t.id)
+    ).sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i + 1 < availableCpuTeams.length; i += 2) {
+      // ~80% of pairs play on this game day (so teams naturally have slightly varied games played like 8-5, 6-1, 5-5!)
+      if (i > 0 && Math.random() < 0.25) continue;
+      const teamA = availableCpuTeams[i];
+      const teamB = availableCpuTeams[i + 1];
+      const ovrA = getTeamOvrFromRoster(teamA.rosterIds);
+      const ovrB = getTeamOvrFromRoster(teamB.rosterIds);
+      const aWins = ovrA + (Math.random() * 14 - 7) >= ovrB + (Math.random() * 14 - 7);
+      const winScore = 106 + Math.floor(Math.random() * 18);
+      const loseScore = winScore - (3 + Math.floor(Math.random() * 14));
+      otherCpuResults.push({
+        winnerId: aWins ? teamA.id : teamB.id,
+        loserId: aWins ? teamB.id : teamA.id,
+        winnerPts: winScore,
+        loserPts: loseScore,
+      });
+    }
+
+    const leagueTicker = otherCpuResults.map((sim) => {
+      const wTeam = CPU_LEAGUE_TEAMS.find((t) => t.id === sim.winnerId);
+      const lTeam = CPU_LEAGUE_TEAMS.find((t) => t.id === sim.loserId);
+      return {
+        winnerAbbr: wTeam ? `${wTeam.city} ${wTeam.name}` : sim.winnerId,
+        loserAbbr: lTeam ? `${lTeam.city} ${lTeam.name}` : sim.loserId,
+        winnerPts: sim.winnerPts,
+        loserPts: sim.loserPts,
+      };
+    });
+
     setLastRewardSummary({
       coinsEarned: earnedCoins,
       wonGame: userWonGame,
       bonusNote,
       bonusCard,
+      leagueTicker,
     });
 
     onCompleteGame({
@@ -1894,6 +1941,41 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
               />
             </div>
           )}
+
+          {/* Around the League Scoreboard Ticker (Other CPU Teams That Played Today!) */}
+          {lastRewardSummary?.leagueTicker &&
+            lastRewardSummary.leagueTicker.length > 0 && (
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                    <Trophy className="w-3.5 h-3.5" />
+                    Around the League Scoreboard (Standings Updated!)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Other CPU franchises also played today — check the updated rankings!
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {lastRewardSummary.leagueTicker.map((game, idx) => (
+                    <div
+                      key={idx}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-emerald-400">
+                          {game.winnerAbbr}
+                        </div>
+                        <div className="text-slate-400">{game.loserAbbr}</div>
+                      </div>
+                      <div className="text-right font-sport font-extrabold text-sm">
+                        <div className="text-emerald-300">{game.winnerPts}</div>
+                        <div className="text-slate-500">{game.loserPts}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
           {/* Official Player Box Score Table */}
           <div>

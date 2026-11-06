@@ -130,12 +130,19 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
   }, [universeCards, ownedMap, tierFilter, searchQuery, sortBy]);
 
   const sortedStandings = useMemo(() => {
-    return [...standings].sort(
-      (a, b) =>
+    return [...standings].sort((a, b) => {
+      const aTotal = Math.max(1, a.wins + a.losses);
+      const bTotal = Math.max(1, b.wins + b.losses);
+      const aWinPct = a.wins / aTotal;
+      const bWinPct = b.wins / bTotal;
+      return (
+        bWinPct - aWinPct ||
+        b.wins - b.losses - (a.wins - a.losses) ||
         b.wins - a.wins ||
         b.pointsFor - b.pointsAgainst - (a.pointsFor - a.pointsAgainst) ||
         b.teamOvr - a.teamOvr
-    );
+      );
+    });
   }, [standings]);
 
   return (
