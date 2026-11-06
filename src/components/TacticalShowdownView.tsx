@@ -1234,7 +1234,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                           {team.abbr} • {teamOvr} OVR
                         </span>
                         <span className="text-xs font-bold text-slate-400">
-                          Record: <strong className="text-white">{standing ? `${standing.wins}-${standing.losses}` : '3-2'}</strong>
+                          Record: <strong className="text-white">{standing ? `${standing.wins}-${standing.losses}` : '0-0'}</strong>
                         </span>
                       </div>
 
