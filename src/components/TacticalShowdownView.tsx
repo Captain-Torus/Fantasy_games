@@ -192,6 +192,8 @@ interface PlayScenario {
   primaryStat: 'off' | 'play' | 'def' | 'clu';
   secondaryStat: 'off' | 'play' | 'def' | 'clu';
   isClutch: boolean;
+  bestForLabel: string;
+  idealPositions: ('PG' | 'SG' | 'SF' | 'PF' | 'C')[];
 }
 
 const PLAY_SCENARIOS: PlayScenario[] = [
@@ -204,6 +206,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'play',
     secondaryStat: 'off',
     isClutch: false,
+    bestForLabel: 'Best For: Point Guard / Shooting Guard',
+    idealPositions: ['PG', 'SG'],
   },
   {
     playNumber: 2,
@@ -214,6 +218,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'off',
     secondaryStat: 'clu',
     isClutch: false,
+    bestForLabel: 'Best For: Shooting Guard / Small Forward',
+    idealPositions: ['SG', 'SF'],
   },
   {
     playNumber: 3,
@@ -224,6 +230,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'def',
     secondaryStat: 'play',
     isClutch: false,
+    bestForLabel: 'Best For: Small Forward / Power Forward',
+    idealPositions: ['SF', 'PF'],
   },
   {
     playNumber: 4,
@@ -234,6 +242,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'play',
     secondaryStat: 'off',
     isClutch: false,
+    bestForLabel: 'Best For: Point Guard / Playmaker',
+    idealPositions: ['PG', 'SG', 'SF'],
   },
   {
     playNumber: 5,
@@ -244,6 +254,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'def',
     secondaryStat: 'off',
     isClutch: false,
+    bestForLabel: 'Best For: Center / Power Forward',
+    idealPositions: ['C', 'PF'],
   },
   {
     playNumber: 6,
@@ -254,6 +266,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'off',
     secondaryStat: 'play',
     isClutch: false,
+    bestForLabel: 'Best For: Point Guard / Shooting Guard',
+    idealPositions: ['PG', 'SG', 'SF'],
   },
   {
     playNumber: 7,
@@ -264,6 +278,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'def',
     secondaryStat: 'clu',
     isClutch: true,
+    bestForLabel: 'Best For: Center / Power Forward',
+    idealPositions: ['C', 'PF', 'SF'],
   },
   {
     playNumber: 8,
@@ -274,6 +290,8 @@ const PLAY_SCENARIOS: PlayScenario[] = [
     primaryStat: 'clu',
     secondaryStat: 'off',
     isClutch: true,
+    bestForLabel: 'Best For: Point Guard / Best Clutch Star',
+    idealPositions: ['PG', 'SG', 'SF'],
   },
 ];
 
@@ -1556,9 +1574,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
             {/* Play Scenario Broadcast Box */}
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded bg-amber-400 text-slate-950 font-extrabold text-xs uppercase">
                     {currentScenario.clock}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-extrabold text-xs uppercase">
+                    ★ {currentScenario.bestForLabel}
                   </span>
                   {currentScenario.isClutch && (
                     <span className="px-2.5 py-0.5 rounded bg-rose-500 text-white font-extrabold text-xs uppercase animate-pulse">
@@ -1625,14 +1646,53 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                 {slotsOrder.map((slot) => {
                   const card = lineupCards[slot];
                   const evo = ownedMap[card.id]?.evoBonus ?? 0;
-                  const effectiveOvr = Math.min(99, card.ovr + evo);
+                  const maxCap = card.ovr >= 99 && evo > 0 ? 100 : 99;
+                  const effectiveOvr = Math.min(maxCap, card.ovr + evo);
                   const cdRemaining = cooldownsBySlot[slot];
                   const isCooling = cdRemaining > 0;
                   const isChosen = selectedSlot === slot;
                   const rule = getCardCooldownAndDrain(card.tier, effectiveOvr);
 
+                  // Calculate this card's base Play Fit for the current play
+                  const uPrimary = Math.min(maxCap, card.stats[currentScenario.primaryStat] + evo);
+                  const uSecondary = Math.min(maxCap, card.stats[currentScenario.secondaryStat] + evo);
+                  const currentStam = staminaBySlot[slot];
+                  const stamFactor = currentStam >= 65 ? 1.0 : 0.85 + (currentStam / 100) * 0.15;
+                  const playFitScore = Math.round((uPrimary * 0.62 + uSecondary * 0.38) * stamFactor);
+
+                  const isIdealPos = currentScenario.idealPositions.includes(card.position);
+                  const posFullName: Record<string, string> = {
+                    PG: 'Point Guard',
+                    SG: 'Shooting Guard',
+                    SF: 'Small Forward',
+                    PF: 'Power Forward',
+                    C: 'Center',
+                  };
+
                   return (
                     <div key={slot} className="flex flex-col items-center gap-1">
+                      {/* Top-of-slot Play Fit & Position Recommendation Pill */}
+                      <div
+                        className={`w-48 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide flex items-center justify-between border ${
+                          isIdealPos && !isCooling
+                            ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                            : 'bg-slate-900/90 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <span className="truncate">
+                          {isIdealPos
+                            ? `★ Best For ${posFullName[card.position]}`
+                            : `${posFullName[card.position]}`}
+                        </span>
+                        <span
+                          className={`ml-1 font-mono font-black ${
+                            isIdealPos && !isCooling ? 'text-amber-300' : 'text-slate-300'
+                          }`}
+                        >
+                          {playFitScore} FIT
+                        </span>
+                      </div>
+
                       <div className="flex items-center justify-between w-48 px-1">
                         <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                           {slot === 'SIXTH' ? '6TH MAN' : slot}
