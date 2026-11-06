@@ -211,11 +211,11 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
       SIXTH: 'white-base-83',
     },
     userRecord: {
-      wins: 4,
-      losses: 1,
-      pointsFor: 512,
-      pointsAgainst: 468,
-      championships: 1,
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      championships: 0,
     },
     cpuRecords: createDefaultCpuRecords(),
     claimedMilestones: [],
@@ -231,7 +231,7 @@ function loadInitialProfiles(): {
     const activeRaw = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
     const migrated = localStorage.getItem('primetime_dynasty_realistic_default_v1');
     const curryGranted = localStorage.getItem('primetime_dynasty_curry_grant_v1');
-    const cpuResetToZero = localStorage.getItem('primetime_dynasty_cpu_reset_0_0_v1');
+    const allResetToZero = localStorage.getItem('primetime_dynasty_all_reset_0_0_v1');
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, FullSavedProfile>;
       const ids = Object.keys(parsed);
@@ -244,12 +244,19 @@ function loadInitialProfiles(): {
           });
           localStorage.setItem('primetime_dynasty_realistic_default_v1', 'true');
         }
-        if (!cpuResetToZero) {
+        if (!allResetToZero) {
           const zeroCpu = createDefaultCpuRecords();
           ids.forEach((k) => {
             parsed[k].cpuRecords = zeroCpu;
+            parsed[k].userRecord = {
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+              championships: 0,
+            };
           });
-          localStorage.setItem('primetime_dynasty_cpu_reset_0_0_v1', 'true');
+          localStorage.setItem('primetime_dynasty_all_reset_0_0_v1', 'true');
         }
         if (!curryGranted) {
           ids.forEach((k) => {
@@ -884,11 +891,11 @@ export function App() {
       {
         id: 'ms-first-win',
         title: 'First Showdown Victory',
-        description: 'Win a Tactical Showdown game against any CPU franchise (Reach 5+ Total Wins).',
+        description: 'Win your first Tactical Showdown game against any CPU franchise (Reach 1+ Total Win).',
         rewardCoins: 1000,
         rewardCharges: 2,
-        unlocked: userRecord.wins >= 5,
-        progressText: `${Math.min(5, userRecord.wins)} / 5 Total Wins`,
+        unlocked: userRecord.wins >= 1,
+        progressText: `${Math.min(1, userRecord.wins)} / 1 Total Win`,
       },
       {
         id: 'ms-10-wins',
