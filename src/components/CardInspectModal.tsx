@@ -5,6 +5,7 @@ import {
   TeamIdentity,
 } from '../types/game';
 import { NBA_PLAYER_CARDS, TIER_LABELS } from '../data/nbaData';
+import { CFB_PLAYER_CARDS } from '../data/cfbData';
 import { PlayerCard } from './PlayerCard';
 import {
   X,
@@ -48,7 +49,7 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
   if (!card) return null;
 
   // Find all editions of this same athlete (e.g., Base 84, Legends 97, Primetime 99 Jordan)
-  const allEditions = NBA_PLAYER_CARDS.filter(
+  const allEditions = [...NBA_PLAYER_CARDS, ...CFB_PLAYER_CARDS].filter(
     (c) => c.playerId === card.playerId
   ).sort((a, b) => b.ovr - a.ovr);
 

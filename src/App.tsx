@@ -19,11 +19,17 @@ import {
   TIER_LABELS,
   TIER_ORDER,
 } from './data/nbaData';
+import {
+  CFB_PACK_DEFINITIONS,
+  CFB_PLAYER_CARDS,
+  CFB_SLOT_LABELS,
+  getCfbCardsForUniverse,
+  REAL_CFB_TEAMS,
+} from './data/cfbData';
 import { PlayerCard } from './components/PlayerCard';
 import { CardInspectModal } from './components/CardInspectModal';
 import { TeamCreatorModal } from './components/TeamCreatorModal';
 import { TacticalShowdownView } from './components/TacticalShowdownView';
-import { DraftFranchiseView } from './components/DraftFranchiseView';
 import { LeaderboardShowcaseView } from './components/LeaderboardShowcaseView';
 import { AccountModal, SavedProfileSummary } from './components/AccountModal';
 import confetti from 'canvas-confetti';
@@ -33,21 +39,18 @@ import {
   CheckCircle2,
   Coins,
   Flame,
-  Gift,
   Layers,
   PackageOpen,
   RotateCcw,
   Settings,
-  Shield,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   Swords,
   Trophy,
-  Users,
 } from 'lucide-react';
 
-const LINEUP_SLOTS: { slot: LineupSlot; label: string; posHint: string }[] = [
+const NBA_LINEUP_SLOTS: { slot: LineupSlot; label: string; posHint: string }[] = [
   { slot: 'PG', label: 'Point Guard (PG)', posHint: 'PG' },
   { slot: 'SG', label: 'Shooting Guard (SG)', posHint: 'SG' },
   { slot: 'SF', label: 'Small Forward (SF)', posHint: 'SF' },
@@ -55,6 +58,93 @@ const LINEUP_SLOTS: { slot: LineupSlot; label: string; posHint: string }[] = [
   { slot: 'C', label: 'Center (C)', posHint: 'C' },
   { slot: 'SIXTH', label: '6th Man (Any Pos)', posHint: 'ANY' },
 ];
+
+const CFB_LINEUP_SLOTS: { slot: LineupSlot; label: string; posHint: string }[] = [
+  { slot: 'PG', label: 'Quarterback (QB)', posHint: 'PG' },
+  { slot: 'SG', label: 'Running Back (RB)', posHint: 'SG' },
+  { slot: 'SF', label: 'Wide Receiver (WR)', posHint: 'SF' },
+  { slot: 'PF', label: 'Defensive Back (DB)', posHint: 'PF' },
+  { slot: 'C', label: 'Pass Rusher / DL', posHint: 'C' },
+  { slot: 'SIXTH', label: 'Heisman Flex (Any)', posHint: 'ANY' },
+];
+
+const DEFAULT_CFB_LINEUP: Record<LineupSlot, string> = {
+  PG: 'cfb-nico-base-84',
+  SG: 'cfb-gordon-base-84',
+  SF: 'cfb-burden-base-84',
+  PF: 'cfb-morrison-base-84',
+  C: 'cfb-jwalker-base-84',
+  SIXTH: 'cfb-nussmeier-base-83',
+};
+
+const STARTER_CFB_OWNED: Record<string, OwnedCard> = {
+  'cfb-nico-base-84': {
+    cardId: 'cfb-nico-base-84',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+  'cfb-gordon-base-84': {
+    cardId: 'cfb-gordon-base-84',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+  'cfb-burden-base-84': {
+    cardId: 'cfb-burden-base-84',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+  'cfb-morrison-base-84': {
+    cardId: 'cfb-morrison-base-84',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+  'cfb-jwalker-base-84': {
+    cardId: 'cfb-jwalker-base-84',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+  'cfb-nussmeier-base-83': {
+    cardId: 'cfb-nussmeier-base-83',
+    quantity: 1,
+    evoBonus: 0,
+    gamesPlayed: 0,
+    totalPoints: 0,
+    totalRebounds: 0,
+    totalAssists: 0,
+    clutchPlaysWon: 0,
+    clutchPlaysTotal: 0,
+  },
+};
 
 interface FullSavedProfile {
   id: string;
@@ -67,6 +157,7 @@ interface FullSavedProfile {
   useFranchiseJersey: boolean;
   ownedMap: Record<string, OwnedCard>;
   lineupIds: Record<LineupSlot, string>;
+  cfbLineupIds?: Record<LineupSlot, string>;
   userRecord: {
     wins: number;
     losses: number;
@@ -101,7 +192,7 @@ function createDefaultCpuRecords() {
       championships: number;
     }
   > = {};
-  REAL_NBA_TEAMS.forEach((t) => {
+  [...REAL_NBA_TEAMS, ...REAL_CFB_TEAMS].forEach((t) => {
     init[t.id] = {
       wins: 0,
       losses: 0,
@@ -124,6 +215,7 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
     franchiseTeam: DEFAULT_CUSTOM_TEAM,
     useFranchiseJersey: false,
     ownedMap: {
+      ...STARTER_CFB_OWNED,
       'trae-base-84': {
         cardId: 'trae-base-84',
         quantity: 1,
@@ -210,6 +302,7 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
       C: 'naz-base-81',
       SIXTH: 'white-base-83',
     },
+    cfbLineupIds: { ...DEFAULT_CFB_LINEUP },
     userRecord: {
       wins: 0,
       losses: 0,
@@ -285,6 +378,19 @@ function loadInitialProfiles(): {
           });
           localStorage.setItem('primetime_dynasty_curry_grant_v1', 'true');
         }
+        // Ensure every profile has starter CFB cards & CFB lineup initialized
+        ids.forEach((k) => {
+          const om = parsed[k].ownedMap || {};
+          Object.entries(STARTER_CFB_OWNED).forEach(([cid, entry]) => {
+            if (!om[cid]) {
+              om[cid] = entry;
+            }
+          });
+          parsed[k].ownedMap = om;
+          if (!parsed[k].cfbLineupIds) {
+            parsed[k].cfbLineupIds = { ...DEFAULT_CFB_LINEUP };
+          }
+        });
         localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(parsed));
         const chosenId = activeRaw && parsed[activeRaw] ? activeRaw : ids[0];
         return { profiles: parsed, activeId: chosenId };
@@ -319,8 +425,10 @@ export function App() {
     initialActive.claimedMilestones || []
   );
 
-  // Core Mode, Universe & Franchise Identity State
-  const [gameMode, setGameMode] = useState<GameMode>('PACK_MODE');
+  // Core Mode ('NBA_MODE' vs 'CFB_MODE'), Universe & Franchise Identity State
+  const [gameMode, setGameMode] = useState<GameMode>('NBA_MODE');
+  const activeSport: 'NBA' | 'CFB' = gameMode === 'CFB_MODE' ? 'CFB' : 'NBA';
+
   const [packTab, setPackTab] = useState<
     'PACKS' | 'LINEUP' | 'SHOWDOWN' | 'LEADERBOARD' | 'MILESTONES'
   >('PACKS');
@@ -344,10 +452,19 @@ export function App() {
     initialActive.ownedMap
   );
 
-  // Active 6-Man Lineup
+  // Active 6-Man Lineup (NBA & CFB each have their own 6-man lineup!)
   const [lineupIds, setLineupIds] = useState<Record<LineupSlot, string>>(
     initialActive.lineupIds
   );
+  const [cfbLineupIds, setCfbLineupIds] = useState<Record<LineupSlot, string>>(
+    initialActive.cfbLineupIds || DEFAULT_CFB_LINEUP
+  );
+
+  const activeLineupIds = activeSport === 'CFB' ? cfbLineupIds : lineupIds;
+  const activeLineupSlots =
+    activeSport === 'CFB' ? CFB_LINEUP_SLOTS : NBA_LINEUP_SLOTS;
+  const activePackDefinitions =
+    activeSport === 'CFB' ? CFB_PACK_DEFINITIONS : PACK_DEFINITIONS;
 
   const [selectingSlot, setSelectingSlot] = useState<LineupSlot | null>(null);
 
@@ -379,19 +496,25 @@ export function App() {
     >
   >(initialActive.cpuRecords);
 
+  const allCardsPool = useMemo(
+    () => [...NBA_PLAYER_CARDS, ...CFB_PLAYER_CARDS],
+    []
+  );
+
   const cardById = (id: string): PlayerCardTemplate =>
-    NBA_PLAYER_CARDS.find((c) => c.id === id) || NBA_PLAYER_CARDS[0];
+    allCardsPool.find((c) => c.id === id) ||
+    (activeSport === 'CFB' ? CFB_PLAYER_CARDS[0] : NBA_PLAYER_CARDS[0]);
 
   const lineupCards = useMemo(() => {
     return {
-      PG: cardById(lineupIds.PG),
-      SG: cardById(lineupIds.SG),
-      SF: cardById(lineupIds.SF),
-      PF: cardById(lineupIds.PF),
-      C: cardById(lineupIds.C),
-      SIXTH: cardById(lineupIds.SIXTH),
+      PG: cardById(activeLineupIds.PG),
+      SG: cardById(activeLineupIds.SG),
+      SF: cardById(activeLineupIds.SF),
+      PF: cardById(activeLineupIds.PF),
+      C: cardById(activeLineupIds.C),
+      SIXTH: cardById(activeLineupIds.SIXTH),
     };
-  }, [lineupIds]);
+  }, [activeLineupIds, activeSport]);
 
   const teamOvr = useMemo(() => {
     const slots: LineupSlot[] = ['PG', 'SG', 'SF', 'PF', 'C', 'SIXTH'];
@@ -416,6 +539,7 @@ export function App() {
       useFranchiseJersey,
       ownedMap,
       lineupIds,
+      cfbLineupIds,
       userRecord,
       cpuRecords,
       claimedMilestones,
@@ -441,6 +565,7 @@ export function App() {
     useFranchiseJersey,
     ownedMap,
     lineupIds,
+    cfbLineupIds,
     userRecord,
     cpuRecords,
     claimedMilestones,
@@ -456,6 +581,7 @@ export function App() {
     setUseFranchiseJersey(Boolean(prof.useFranchiseJersey));
     setOwnedMap(prof.ownedMap);
     setLineupIds(prof.lineupIds);
+    setCfbLineupIds(prof.cfbLineupIds || DEFAULT_CFB_LINEUP);
     setUserRecord(prof.userRecord);
     setCpuRecords(prof.cpuRecords || createDefaultCpuRecords());
     setClaimedMilestones(prof.claimedMilestones || []);
@@ -504,6 +630,7 @@ export function App() {
       useFranchiseJersey,
       ownedMap,
       lineupIds,
+      cfbLineupIds,
       userRecord,
       cpuRecords,
       claimedMilestones,
@@ -563,33 +690,34 @@ export function App() {
   }, [ownedMap]);
 
   const leagueStandings: LeagueTeamStanding[] = useMemo(() => {
-    const cpuBase: LeagueTeamStanding[] = REAL_NBA_TEAMS.filter(
-      (t) => t.id !== franchiseTeam.id
-    ).map((t, idx) => {
-      const rec = cpuRecords[t.id] || {
-        wins: 0,
-        losses: 0,
-        pointsFor: 0,
-        pointsAgainst: 0,
-        championships: 0,
-      };
-      return {
-        id: t.id,
-        city: t.city,
-        name: t.name,
-        abbreviation: t.abbreviation,
-        primaryColor: t.primaryColor,
-        secondaryColor: t.secondaryColor,
-        isUser: false,
-        wins: rec.wins,
-        losses: rec.losses,
-        pointsFor: rec.pointsFor,
-        pointsAgainst: rec.pointsAgainst,
-        teamOvr: 94 - idx,
-        collectionScore: 9800 - idx * 720,
-        championships: rec.championships,
-      };
-    });
+    const baseTeams = activeSport === 'CFB' ? REAL_CFB_TEAMS : REAL_NBA_TEAMS;
+    const cpuBase: LeagueTeamStanding[] = baseTeams
+      .filter((t) => t.id !== franchiseTeam.id)
+      .map((t, idx) => {
+        const rec = cpuRecords[t.id] || {
+          wins: 0,
+          losses: 0,
+          pointsFor: 0,
+          pointsAgainst: 0,
+          championships: 0,
+        };
+        return {
+          id: t.id,
+          city: t.city,
+          name: t.name,
+          abbreviation: t.abbreviation,
+          primaryColor: t.primaryColor,
+          secondaryColor: t.secondaryColor,
+          isUser: false,
+          wins: rec.wins,
+          losses: rec.losses,
+          pointsFor: rec.pointsFor,
+          pointsAgainst: rec.pointsAgainst,
+          teamOvr: 94 - idx,
+          collectionScore: 9800 - idx * 720,
+          championships: rec.championships,
+        };
+      });
 
     const userStanding: LeagueTeamStanding = {
       id: franchiseTeam.id,
@@ -609,14 +737,17 @@ export function App() {
     };
 
     return [userStanding, ...cpuBase];
-  }, [franchiseTeam, userRecord, cpuRecords, teamOvr, collectionScore]);
+  }, [activeSport, franchiseTeam, userRecord, cpuRecords, teamOvr, collectionScore]);
+
+  const getActivePool = (univ: UniverseMode, sport: 'NBA' | 'CFB') =>
+    sport === 'CFB' ? getCfbCardsForUniverse(univ) : getCardsForUniverse(univ);
 
   // Pack Roll Generator
   const rollCardFromPool = (
     pack: PackDefinition,
     forceMinTier?: CardTier
   ): PlayerCardTemplate => {
-    const pool = getCardsForUniverse(universe);
+    const pool = getActivePool(universe, activeSport);
     const minOrder = forceMinTier ? TIER_ORDER[forceMinTier] : 1;
 
     // Roll tier based on weights
@@ -660,11 +791,11 @@ export function App() {
 
     // Add Rainbow Jackpot Pity Meter charges so every pack brings you closer to a 98-99 Rainbow Icon!
     const chargeGain =
-      pack.id === 'primetime-rainbow-pack'
+      pack.id.includes('primetime-rainbow')
         ? 5
-        : pack.id === 'legends-shiny-pack'
+        : pack.id.includes('legends-shiny')
         ? 3
-        : pack.id === 'allstar-pack'
+        : pack.id.includes('allstar')
         ? 2
         : 1;
 
@@ -764,11 +895,15 @@ export function App() {
 
   const handleClaimJackpotPrimetime = () => {
     if (jackpotCharges < JACKPOT_TARGET) return;
-    const pool = getCardsForUniverse(universe).filter((c) => c.tier === 'PRIMETIME');
+    const pool = getActivePool(universe, activeSport).filter(
+      (c) => c.tier === 'PRIMETIME'
+    );
+    const fallbackPool =
+      activeSport === 'CFB' ? CFB_PLAYER_CARDS : NBA_PLAYER_CARDS;
     const finalPool =
       pool.length > 0
         ? pool
-        : NBA_PLAYER_CARDS.filter((c) => c.tier === 'PRIMETIME');
+        : fallbackPool.filter((c) => c.tier === 'PRIMETIME');
     const jackpotCard = finalPool[Math.floor(Math.random() * finalPool.length)];
 
     setJackpotCharges(0);
@@ -813,15 +948,17 @@ export function App() {
   // Assign Card to Active Lineup Slot (Enforcing Realistic vs Fantastical 1-version-per-player rule!)
   const handleEquipCardToSlot = (slot: LineupSlot, candidateCardId: string) => {
     const candidate = cardById(candidateCardId);
+    const currentMap = activeSport === 'CFB' ? cfbLineupIds : lineupIds;
+    const setMap = activeSport === 'CFB' ? setCfbLineupIds : setLineupIds;
 
     // Check if this exact card ID is already in another slot
     const existingSlotWithSameCard = (
-      Object.keys(lineupIds) as LineupSlot[]
-    ).find((s) => s !== slot && lineupIds[s] === candidateCardId);
+      Object.keys(currentMap) as LineupSlot[]
+    ).find((s) => s !== slot && currentMap[s] === candidateCardId);
 
     if (existingSlotWithSameCard) {
       // Swap slots cleanly
-      setLineupIds((prev) => ({
+      setMap((prev) => ({
         ...prev,
         [slot]: candidateCardId,
         [existingSlotWithSameCard]: prev[slot],
@@ -832,15 +969,15 @@ export function App() {
 
     // In Realistic mode, check if another edition of the same player (e.g. 97 Jordan vs 99 Jordan) is in another slot
     if (universe === 'REALISTIC') {
-      const conflictingSlot = (Object.keys(lineupIds) as LineupSlot[]).find(
+      const conflictingSlot = (Object.keys(currentMap) as LineupSlot[]).find(
         (s) =>
           s !== slot &&
-          cardById(lineupIds[s]).playerId === candidate.playerId
+          cardById(currentMap[s]).playerId === candidate.playerId
       );
       if (conflictingSlot) {
         alert(
           `Realistic Universe Rule: You already have ${
-            cardById(lineupIds[conflictingSlot]).editionTitle
+            cardById(currentMap[conflictingSlot]).editionTitle
           } ${candidate.firstName} ${
             candidate.lastName
           } in your ${conflictingSlot} slot! In Realistic mode, only 1 version of the same athlete can start at once (or switch to Fantastical/Crossover in the Studio to start multiple versions!).`
@@ -849,7 +986,7 @@ export function App() {
       }
     }
 
-    setLineupIds((prev) => ({
+    setMap((prev) => ({
       ...prev,
       [slot]: candidateCardId,
     }));
@@ -863,6 +1000,9 @@ export function App() {
         owned: item,
         card: cardById(item.cardId),
       }))
+      .filter(({ card }) =>
+        activeSport === 'CFB' ? card.sport === 'CFB' : card.sport !== 'CFB'
+      )
       .sort(
         (a, b) =>
           b.card.ovr +
@@ -870,7 +1010,7 @@ export function App() {
           (a.card.ovr + a.owned.evoBonus) ||
           TIER_ORDER[b.card.tier] - TIER_ORDER[a.card.tier]
       );
-  }, [ownedMap]);
+  }, [ownedMap, activeSport]);
 
   // Milestones & Trophies System
   const milestonesList = useMemo(() => {
@@ -966,8 +1106,8 @@ export function App() {
   }, [ownedCardsList, userRecord.wins, teamOvr]);
 
   // Live Card Market (4 Rotating Singles + 3 Trending 2.5x Sell Surge Players)
-  const buildCardMarket = (univ: UniverseMode) => {
-    const pool = getCardsForUniverse(univ);
+  const buildCardMarket = (univ: UniverseMode, sport: 'NBA' | 'CFB' = activeSport) => {
+    const pool = getActivePool(univ, sport);
     const pickRandom = (arr: PlayerCardTemplate[]) =>
       arr[Math.floor(Math.random() * arr.length)] || pool[0];
 
@@ -1041,14 +1181,17 @@ export function App() {
     };
   };
 
-  const [cardMarket, setCardMarket] = useState(() => buildCardMarket(universe));
+  const [cardMarket, setCardMarket] = useState(() =>
+    buildCardMarket(universe, 'NBA')
+  );
   const [boughtMarketSlots, setBoughtMarketSlots] = useState<number[]>([]);
 
-  // Refresh Card Market automatically when universe changes
+  // Refresh Card Market automatically when universe or sport changes
   useEffect(() => {
-    setCardMarket(buildCardMarket(universe));
+    setCardMarket(buildCardMarket(universe, activeSport));
     setBoughtMarketSlots([]);
-  }, [universe]);
+    setSelectingSlot(null);
+  }, [universe, activeSport]);
 
   const handleRerollMarket = () => {
     const REROLL_COST = 200;
@@ -1057,7 +1200,7 @@ export function App() {
       return;
     }
     setCoins((c) => c - REROLL_COST);
-    setCardMarket(buildCardMarket(universe));
+    setCardMarket(buildCardMarket(universe, activeSport));
     setBoughtMarketSlots([]);
   };
 
@@ -1155,7 +1298,7 @@ export function App() {
                   PRIMETIME DYNASTY
                 </span>
                 <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-extrabold text-[10px] uppercase">
-                  NBA MODULE
+                  {activeSport === 'CFB' ? '🏈 COLLEGE FOOTBALL' : '🏀 NBA MODULE'}
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-300 font-bold text-[10px] uppercase border border-slate-700">
                   {universe}
@@ -1167,7 +1310,7 @@ export function App() {
               >
                 <span>
                   Franchise: <strong>{franchiseTeam.city} {franchiseTeam.name}</strong> (
-                  {franchiseTeam.isCustom ? 'Custom Team' : 'Real NBA Team'})
+                  {franchiseTeam.isCustom ? 'Custom Team' : 'Real Team'})
                 </span>
                 <Settings className="w-3.5 h-3.5 text-amber-400" />
                 <span className="underline text-amber-400">Change Team / Universe</span>
@@ -1175,33 +1318,33 @@ export function App() {
             </div>
           </div>
 
-          {/* Center Mode Switcher (Separate Pack Mode vs. Draft/Trade/Sell Mode) */}
+          {/* Center Sport Switcher (NBA Packs & Showdown vs. College Football Packs & Showdown) */}
           <div className="flex items-center rounded-2xl bg-slate-900 p-1 border border-slate-800">
             <button
-              onClick={() => setGameMode('PACK_MODE')}
+              onClick={() => setGameMode('NBA_MODE')}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition ${
-                gameMode === 'PACK_MODE'
+                gameMode === 'NBA_MODE'
                   ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow'
                   : 'text-slate-300 hover:text-white'
               }`}
             >
               <PackageOpen className="w-4 h-4" />
-              Pack & Showdown Mode
+              🏀 NBA Packs & Showdown
             </button>
             <button
-              onClick={() => setGameMode('DRAFT_MODE')}
+              onClick={() => setGameMode('CFB_MODE')}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition ${
-                gameMode === 'DRAFT_MODE'
-                  ? 'bg-gradient-to-r from-indigo-400 to-sky-400 text-slate-950 shadow'
+                gameMode === 'CFB_MODE'
+                  ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 shadow'
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Users className="w-4 h-4" />
-              Draft, Trade & Sell Mode
+              <Trophy className="w-4 h-4" />
+              🏈 College Football Packs
             </button>
           </div>
 
-          {/* Right GM Account Auto-Login Pill, Coin Balance & Quick Refill */}
+          {/* Right GM Account Auto-Login Pill & Coin Balance */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Option 1 Instant Auto-Login & Cloud Vault Button */}
             <button
@@ -1216,101 +1359,89 @@ export function App() {
               </span>
             </button>
 
-            {gameMode === 'PACK_MODE' && (
-              <div className="px-3.5 py-2 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center gap-2">
-                <Coins className="w-4 h-4 text-amber-400" />
-                <span className="font-sport font-extrabold text-lg text-amber-300 leading-none">
-                  {coins.toLocaleString()}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
-                  COINS
-                </span>
-              </div>
-            )}
+            <div className="px-3.5 py-2 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center gap-2">
+              <Coins className="w-4 h-4 text-amber-400" />
+              <span className="font-sport font-extrabold text-lg text-amber-300 leading-none">
+                {coins.toLocaleString()}
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                COINS
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Sub-Navigation Bar for Pack & Showdown Mode */}
-        {gameMode === 'PACK_MODE' && (
-          <div className="bg-slate-900/80 border-t border-slate-800/80">
-            <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {[
-                  {
-                    id: 'PACKS',
-                    label: 'Pack Store & Vaults',
-                    icon: PackageOpen,
-                  },
-                  {
-                    id: 'LINEUP',
-                    label: `My Lineup (${teamOvr} OVR) & Binder (${ownedCardsList.length})`,
-                    icon: Layers,
-                  },
-                  {
-                    id: 'SHOWDOWN',
-                    label: 'Play CPU Tactical Showdown',
-                    icon: Swords,
-                  },
-                  {
-                    id: 'LEADERBOARD',
-                    label: 'Leaderboards & Showcase',
-                    icon: Trophy,
-                  },
-                  {
-                    id: 'MILESTONES',
-                    label:
-                      unclaimedReadyCount > 0
-                        ? `Milestones (${unclaimedReadyCount} Ready!)`
-                        : 'Milestones & Trophies',
-                    icon: Award,
-                  },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const active = packTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setPackTab(item.id as typeof packTab)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition ${
-                        active
-                          ? 'bg-amber-400 text-slate-950 shadow'
-                          : item.id === 'MILESTONES' && unclaimedReadyCount > 0
-                          ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/30'
-                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Sub-Navigation Bar for Packs & Showdown */}
+        <div className="bg-slate-900/80 border-t border-slate-800/80">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                {
+                  id: 'PACKS',
+                  label: activeSport === 'CFB' ? 'CFB Pack Store & Market' : 'NBA Pack Store & Market',
+                  icon: PackageOpen,
+                },
+                {
+                  id: 'LINEUP',
+                  label: `My ${activeSport} Lineup (${teamOvr} OVR) & Binder (${ownedCardsList.length})`,
+                  icon: Layers,
+                },
+                {
+                  id: 'SHOWDOWN',
+                  label: `Play ${activeSport} Tactical Showdown`,
+                  icon: Swords,
+                },
+                {
+                  id: 'LEADERBOARD',
+                  label: 'Leaderboards & Showcase',
+                  icon: Trophy,
+                },
+                {
+                  id: 'MILESTONES',
+                  label:
+                    unclaimedReadyCount > 0
+                      ? `Milestones (${unclaimedReadyCount} Ready!)`
+                      : 'Milestones & Trophies',
+                  icon: Award,
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+                const active = packTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setPackTab(item.id as typeof packTab)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition ${
+                      active
+                        ? 'bg-amber-400 text-slate-950 shadow'
+                        : item.id === 'MILESTONES' && unclaimedReadyCount > 0
+                        ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/30'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
 
-              <div className="text-xs text-slate-400 hidden md:block">
-                GM: <strong className="text-emerald-400">{gmName}</strong> • Squad:{' '}
-                <strong className="text-amber-400">{teamOvr} OVR</strong> • Record:{' '}
-                <strong className="text-white">
-                  {userRecord.wins}-{userRecord.losses}
-                </strong>
-              </div>
+            <div className="text-xs text-slate-400 hidden md:block">
+              GM: <strong className="text-emerald-400">{gmName}</strong> • {activeSport} Squad:{' '}
+              <strong className="text-amber-400">{teamOvr} OVR</strong> • Record:{' '}
+              <strong className="text-white">
+                {userRecord.wins}-{userRecord.losses}
+              </strong>
             </div>
           </div>
-        )}
+        </div>
       </header>
 
       {/* ==================== MAIN CONTENT AREA ==================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
-        {gameMode === 'DRAFT_MODE' ? (
-          <DraftFranchiseView
-            franchiseTeam={franchiseTeam}
-            universe={universe}
-            useFranchiseJersey={useFranchiseJersey}
-            onInspectCard={(card) => setInspectedCard(card)}
-          />
-        ) : (
-          <>
-            {/* ==================== PACK MODE TAB 1: PACK STORE & FEATURED EDITIONS ==================== */}
-            {packTab === 'PACKS' && (
+        <>
+          {/* ==================== PACK MODE TAB 1: PACK STORE & FEATURED EDITIONS ==================== */}
+          {packTab === 'PACKS' && (
               <div className="space-y-8">
                 {/* Hero Banner */}
                 <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/50 border border-slate-800 flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -1319,14 +1450,28 @@ export function App() {
                       <Sparkles className="w-3.5 h-3.5" /> 5 Rarity Tiers • Shiny Legends (95–97) & Rainbow Primetime (98–99 • Forge 3x 99s into 100 OVR!)
                     </div>
                     <h1 className="font-sport font-extrabold text-3xl sm:text-4xl text-white leading-tight">
-                      RIP PACKS. COLLECT ICONIC EDITIONS. BUILD THE{' '}
+                      {activeSport === 'CFB'
+                        ? 'RIP SATURDAY PACKS. COLLECT HEISMAN LEGENDS. BUILD THE '
+                        : 'RIP PACKS. COLLECT ICONIC EDITIONS. BUILD THE '}
                       <span className="text-amber-400">
                         {franchiseTeam.city.toUpperCase()} {franchiseTeam.name.toUpperCase()}
                       </span>
                       .
                     </h1>
                     <p className="text-sm text-slate-300">
-                      Pull multiple editions of legends and superstars—like a <strong>97 OVR Shiny Holographic Legends Michael Jordan</strong> alongside a <strong>99 OVR Prismatic Rainbow Primetime Michael Jordan</strong>. Combine 3 copies of any 99 OVR card to forge a <strong>100 OVR</strong> card!
+                      {activeSport === 'CFB' ? (
+                        <>
+                          Pull College Football Heisman winners and campus superstars—like{' '}
+                          <strong>99 OVR Joe Burrow, Reggie Bush, Tim Tebow, Cam Newton & Barry Sanders</strong>{' '}
+                          alongside <strong>Travis Hunter, Ashton Jeanty & Jeremiah Smith</strong>. Combine 3 copies of any card to forge <strong>100+ OVR Dark Matter</strong>!
+                        </>
+                      ) : (
+                        <>
+                          Pull multiple editions of NBA legends and superstars—like a{' '}
+                          <strong>97 OVR Shiny Holographic Legends Michael Jordan</strong> alongside a{' '}
+                          <strong>99 OVR Prismatic Rainbow Primetime Michael Jordan</strong>. Combine 3 copies of any card to forge <strong>100+ OVR Dark Matter</strong>!
+                        </>
+                      )}
                     </p>
                   </div>
 
@@ -1395,10 +1540,10 @@ export function App() {
                 <div>
                   <h2 className="font-sport font-extrabold text-2xl text-white mb-4 flex items-center gap-2">
                     <PackageOpen className="w-6 h-6 text-amber-400" />
-                    SELECT A CARD PACK TO OPEN ({universe} POOL)
+                    SELECT A {activeSport === 'CFB' ? 'COLLEGE FOOTBALL' : 'NBA'} CARD PACK TO OPEN ({universe} POOL)
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    {PACK_DEFINITIONS.map((pack) => {
+                    {activePackDefinitions.map((pack) => {
                       const canAfford = coins >= pack.priceCoins;
                       return (
                         <div
@@ -1640,10 +1785,12 @@ export function App() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 justify-items-center">
-                    {LINEUP_SLOTS.map(({ slot, label }) => {
+                    {activeLineupSlots.map(({ slot, label }) => {
                       const c = lineupCards[slot];
                       const owned = ownedMap[c.id];
                       const isSwapping = selectingSlot === slot;
+                      const slotShort =
+                        activeSport === 'CFB' ? CFB_SLOT_LABELS[slot] : slot;
                       return (
                         <div key={slot} className="flex flex-col items-center gap-2">
                           <span className="px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[11px] font-extrabold text-amber-400 uppercase">
@@ -1669,7 +1816,7 @@ export function App() {
                                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                             }`}
                           >
-                            {isSwapping ? 'Select from Binder Below ↓' : `Swap ${slot}`}
+                            {isSwapping ? 'Select from Binder Below ↓' : `Swap ${slotShort}`}
                           </button>
                         </div>
                       );
@@ -1682,10 +1829,10 @@ export function App() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="font-sport font-extrabold text-2xl text-white">
-                        COLLECTION BINDER ({ownedCardsList.length} Unique Editions Owned)
+                        {activeSport === 'CFB' ? '🏈 COLLEGE FOOTBALL' : '🏀 NBA'} COLLECTION BINDER ({ownedCardsList.length} Unique Editions Owned)
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Sell extra duplicates for Coins, combine 3 copies for +1 OVR, or combine 3 copies of a <strong>99 OVR</strong> card to forge a <strong>100 OVR Dark Matter</strong> card!
+                        Sell extra duplicates for Coins, combine 3 copies for +1 OVR, or combine 3 copies of a <strong>99 OVR</strong> card to forge a <strong>100+ OVR Dark Matter</strong> card!
                       </p>
                     </div>
                   </div>
@@ -1693,8 +1840,18 @@ export function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 justify-items-center">
                     {ownedCardsList.map(({ card, owned }) => {
                       const inLineupSlot = (
-                        Object.keys(lineupIds) as LineupSlot[]
-                      ).find((s) => lineupIds[s] === card.id);
+                        Object.keys(activeLineupIds) as LineupSlot[]
+                      ).find((s) => activeLineupIds[s] === card.id);
+                      const inSlotDisplay = inLineupSlot
+                        ? activeSport === 'CFB'
+                          ? CFB_SLOT_LABELS[inLineupSlot]
+                          : inLineupSlot
+                        : undefined;
+                      const selSlotDisplay = selectingSlot
+                        ? activeSport === 'CFB'
+                          ? CFB_SLOT_LABELS[selectingSlot]
+                          : selectingSlot
+                        : undefined;
 
                       const canCombine = owned.quantity >= 3;
 
@@ -1711,7 +1868,7 @@ export function App() {
                             franchiseTeam={franchiseTeam}
                             size="md"
                             actionBadge={
-                              inLineupSlot ? `IN ${inLineupSlot}` : undefined
+                              inSlotDisplay ? `IN ${inSlotDisplay}` : undefined
                             }
                             onClick={() => {
                               if (selectingSlot) {
@@ -1731,7 +1888,7 @@ export function App() {
                                 }
                                 className="w-full py-2 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-xs font-extrabold uppercase shadow"
                               >
-                                Equip into {selectingSlot} Slot
+                                Equip into {selSlotDisplay} Slot
                               </button>
                             )}
 
@@ -1774,6 +1931,7 @@ export function App() {
             {/* ==================== PACK MODE TAB 3: TACTICAL CARD SHOWDOWNS VS. CPU ==================== */}
             {packTab === 'SHOWDOWN' && (
               <TacticalShowdownView
+                sport={activeSport}
                 lineupCards={lineupCards}
                 ownedMap={ownedMap}
                 franchiseTeam={franchiseTeam}
@@ -1785,7 +1943,7 @@ export function App() {
                 onJumpToLeaderboard={() => setPackTab('LEADERBOARD')}
                 onCompleteGame={(result) => {
                   // Refresh the Live Card Market after every completed Showdown game!
-                  setCardMarket(buildCardMarket(universe));
+                  setCardMarket(buildCardMarket(universe, activeSport));
                   setBoughtMarketSlots([]);
 
                   // 1. Credit Coins on Win OR Deduct Coins on Loss!
@@ -1899,6 +2057,7 @@ export function App() {
             {/* ==================== PACK MODE TAB 4: DETAILED LEADERBOARDS & SHOWCASE ==================== */}
             {packTab === 'LEADERBOARD' && (
               <LeaderboardShowcaseView
+                sport={activeSport}
                 standings={leagueStandings}
                 ownedMap={ownedMap}
                 franchiseTeam={franchiseTeam}
@@ -1997,8 +2156,7 @@ export function App() {
                 </div>
               </div>
             )}
-          </>
-        )}
+        </>
       </main>
 
       {/* ==================== PACK RIP REVEAL OVERLAY MODAL ==================== */}
@@ -2106,7 +2264,7 @@ export function App() {
         ownedMap={ownedMap}
         franchiseTeam={franchiseTeam}
         useFranchiseJerseyDefault={useFranchiseJersey}
-        isPackMode={gameMode === 'PACK_MODE'}
+        isPackMode={true}
         onClose={() => setInspectedCard(null)}
         onSelectCardEdition={(ed) => setInspectedCard(ed)}
         onQuickSellDuplicate={handleQuickSellDuplicate}

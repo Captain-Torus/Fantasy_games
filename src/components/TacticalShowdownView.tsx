@@ -8,6 +8,13 @@ import {
   TeamIdentity,
 } from '../types/game';
 import { NBA_PLAYER_CARDS } from '../data/nbaData';
+import {
+  CFB_CPU_LEAGUE_TEAMS,
+  CFB_PLAYER_CARDS,
+  CFB_PLAY_SCENARIOS,
+  CFB_POS_FULL_NAMES,
+  CFB_SLOT_LABELS,
+} from '../data/cfbData';
 import { PlayerCard } from './PlayerCard';
 import confetti from 'canvas-confetti';
 import {
@@ -331,6 +338,7 @@ interface BracketMatch {
 }
 
 interface TacticalShowdownViewProps {
+  sport?: 'NBA' | 'CFB';
   lineupCards: Record<LineupSlot, PlayerCardTemplate>;
   ownedMap: Record<string, OwnedCard>;
   franchiseTeam: TeamIdentity;
@@ -370,6 +378,7 @@ interface TacticalShowdownViewProps {
 }
 
 export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
+  sport = 'NBA',
   lineupCards,
   ownedMap,
   franchiseTeam,
@@ -381,6 +390,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
   onJumpToLeaderboard,
   onCompleteGame,
 }) => {
+  const activeCpuTeams: CpuTeamOpponent[] =
+    sport === 'CFB' ? (CFB_CPU_LEAGUE_TEAMS as CpuTeamOpponent[]) : CPU_LEAGUE_TEAMS;
+  const activeCardPool = sport === 'CFB' ? CFB_PLAYER_CARDS : NBA_PLAYER_CARDS;
+  const activeScenarios: PlayScenario[] =
+    sport === 'CFB' ? CFB_PLAY_SCENARIOS : PLAY_SCENARIOS;
+
   // Dynamic Opponent Scaling: as the user's Team OVR and Win total rise, CPU opponents get stronger!
   const cpuScaleBonus = Math.min(
     10,
@@ -408,7 +423,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
   // Active Game State
   const [selectedOpponent, setSelectedOpponent] = useState<CpuTeamOpponent>(
-    CPU_LEAGUE_TEAMS[0]
+    activeCpuTeams[0]
   );
   const [inProgress, setInProgress] = useState(false);
   const [isBracketGame, setIsBracketGame] = useState(false);
@@ -504,7 +519,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
   const getTeamOvrFromRoster = (rosterIds: string[]) => {
     const cards = rosterIds
-      .map((id) => NBA_PLAYER_CARDS.find((c) => c.id === id))
+      .map((id) => activeCardPool.find((c) => c.id === id))
       .filter(Boolean) as PlayerCardTemplate[];
     if (cards.length === 0) return 85;
     const baseOvr = Math.round(cards.reduce((a, b) => a + b.ovr, 0) / cards.length);
@@ -523,7 +538,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       ovr: 92,
     };
 
-    const cpuPool = CPU_LEAGUE_TEAMS.filter((t) => t.id !== franchiseTeam.id).slice(0, 7);
+    const cpuPool = activeCpuTeams.filter((t) => t.id !== franchiseTeam.id).slice(0, 7);
     const participants = [
       userEntry,
       ...cpuPool.map((c) => ({
@@ -551,12 +566,13 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     setBracketRound('QF');
   };
 
-  // Ensure bracket is initialized the first time user opens Bracket tab
+  // Ensure bracket is initialized the first time user opens Bracket tab or switches sport
   React.useEffect(() => {
-    if (qfMatches.length === 0) {
-      initBracket();
-    }
-  }, []);
+    setSelectedOpponent(activeCpuTeams[0]);
+    setInProgress(false);
+    setActiveSeries(null);
+    initBracket();
+  }, [sport]);
 
   const launchMatchupGame = (opponent: CpuTeamOpponent, fromBracket: boolean) => {
     setSelectedOpponent(opponent);
@@ -571,7 +587,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
     const pool = [...opponent.rosterIds, ...opponent.rosterIds];
     const shuffled = pool
-      .slice(0, PLAY_SCENARIOS.length)
+      .slice(0, activeScenarios.length)
       .sort(() => Math.random() - 0.5);
     setCpuPlayOrder(shuffled);
 
@@ -632,12 +648,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     launchMatchupGame(opponent, false);
   };
 
-  const currentScenario = PLAY_SCENARIOS[playIndex];
+  const currentScenario = activeScenarios[playIndex];
   const cpuCardId =
     cpuPlayOrder[playIndex] ||
     selectedOpponent.rosterIds[playIndex % selectedOpponent.rosterIds.length];
   const cpuCard =
-    NBA_PLAYER_CARDS.find((c) => c.id === cpuCardId) || NBA_PLAYER_CARDS[0];
+    activeCardPool.find((c) => c.id === cpuCardId) || activeCardPool[0];
 
   const advanceAfterReveal = () => {
     if (!revealedPlayResult) return;
@@ -685,7 +701,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
         const roll = Math.random() * 100;
         const targetTier: CardTier =
           roll < 1.5 ? 'PRIMETIME' : roll < 9.5 ? 'LEGENDS' : roll < 50 ? 'ELITE' : 'ALL_STAR';
-        const tierPool = NBA_PLAYER_CARDS.filter((c) => c.tier === targetTier);
+        const tierPool = activeCardPool.filter((c) => c.tier === targetTier);
         bonusCard = tierPool[Math.floor(Math.random() * tierPool.length)];
         bonusNote = `SERIES CLINCHED (${nextUWins}–${nextCWins})! +${seriesBonus} Series Bonus Coins + Free ${bonusCard.editionTitle} ${bonusCard.lastName} (${bonusCard.ovr} OVR)!`;
       } else if (seriesDone) {
@@ -836,7 +852,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
           bonusChampionship = true;
           // Bracket Finals Trophy Card: 88% Shiny Holographic Legend (95-97), 12% Rainbow Primetime Jackpot (98-99)!
           const hitRainbowJackpot = Math.random() < 0.12;
-          const trophyPool = NBA_PLAYER_CARDS.filter(
+          const trophyPool = activeCardPool.filter(
             (c) => c.tier === (hitRainbowJackpot ? 'PRIMETIME' : 'LEGENDS')
           );
           bonusCard = trophyPool[Math.floor(Math.random() * trophyPool.length)];
@@ -864,7 +880,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       selectedOpponent.id,
       ...otherCpuResults.flatMap((r) => [r.winnerId, r.loserId]),
     ]);
-    const availableCpuTeams = CPU_LEAGUE_TEAMS.filter(
+    const availableCpuTeams = activeCpuTeams.filter(
       (t) => !alreadyPlayedIds.has(t.id)
     ).sort(() => Math.random() - 0.5);
 
@@ -887,8 +903,8 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     }
 
     const leagueTicker = otherCpuResults.map((sim) => {
-      const wTeam = CPU_LEAGUE_TEAMS.find((t) => t.id === sim.winnerId);
-      const lTeam = CPU_LEAGUE_TEAMS.find((t) => t.id === sim.loserId);
+      const wTeam = activeCpuTeams.find((t) => t.id === sim.winnerId);
+      const lTeam = activeCpuTeams.find((t) => t.id === sim.loserId);
       return {
         winnerAbbr: wTeam ? `${wTeam.city} ${wTeam.name}` : sim.winnerId,
         loserAbbr: lTeam ? `${lTeam.city} ${lTeam.name}` : sim.loserId,
@@ -1099,7 +1115,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
   // Find user's current bracket opponent if in Bracket mode
   const getCurrentBracketOpponent = (): CpuTeamOpponent => {
-    let oppId = 'atl-hawks';
+    let oppId = activeCpuTeams[0].id;
     if (bracketRound === 'QF') {
       const m = qfMatches.find((x) => x.teamA.isUser || x.teamB.isUser);
       if (m) oppId = m.teamA.isUser ? m.teamB.id : m.teamA.id;
@@ -1109,7 +1125,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     } else if (bracketRound === 'FINALS' && finalsMatch) {
       oppId = finalsMatch.teamA.isUser ? finalsMatch.teamB.id : finalsMatch.teamA.id;
     }
-    return CPU_LEAGUE_TEAMS.find((t) => t.id === oppId) || CPU_LEAGUE_TEAMS[0];
+    return activeCpuTeams.find((t) => t.id === oppId) || activeCpuTeams[0];
   };
 
   if (!inProgress) {
@@ -1229,12 +1245,12 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
             {/* CPU League Teams Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {CPU_LEAGUE_TEAMS.filter((t) => t.id !== franchiseTeam.id).map((team) => {
+              {activeCpuTeams.filter((t) => t.id !== franchiseTeam.id).map((team) => {
                 const standing = standings.find((s) => s.id === team.id);
                 const teamOvr = getTeamOvrFromRoster(team.rosterIds);
                 const topStars = team.rosterIds
                   .slice(0, 3)
-                  .map((id) => NBA_PLAYER_CARDS.find((c) => c.id === id)!)
+                  .map((id) => activeCardPool.find((c) => c.id === id)!)
                   .filter(Boolean);
 
                 return (
@@ -1659,13 +1675,22 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                   const playFitScore = Math.round((uPrimary * 0.62 + uSecondary * 0.38) * stamFactor);
 
                   const isIdealPos = currentScenario.idealPositions.includes(card.position);
-                  const posFullName: Record<string, string> = {
-                    PG: 'Point Guard',
-                    SG: 'Shooting Guard',
-                    SF: 'Small Forward',
-                    PF: 'Power Forward',
-                    C: 'Center',
-                  };
+                  const posFullName: Record<string, string> =
+                    sport === 'CFB'
+                      ? CFB_POS_FULL_NAMES
+                      : {
+                          PG: 'Point Guard',
+                          SG: 'Shooting Guard',
+                          SF: 'Small Forward',
+                          PF: 'Power Forward',
+                          C: 'Center',
+                        };
+                  const slotDisplay =
+                    sport === 'CFB'
+                      ? CFB_SLOT_LABELS[slot]
+                      : slot === 'SIXTH'
+                      ? '6TH MAN'
+                      : slot;
 
                   return (
                     <div key={slot} className="flex flex-col items-center gap-1">
@@ -1693,7 +1718,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
                       <div className="flex items-center justify-between w-48 px-1">
                         <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                          {slot === 'SIXTH' ? '6TH MAN' : slot}
+                          {slotDisplay}
                         </span>
                         <span className="text-[10px] font-bold text-sky-400 flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5" /> {rule.label}

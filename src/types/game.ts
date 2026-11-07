@@ -1,6 +1,6 @@
 export type SportId = 'NBA' | 'NFL' | 'NHL' | 'CFB';
 
-export type GameMode = 'PACK_MODE' | 'DRAFT_MODE';
+export type GameMode = 'NBA_MODE' | 'CFB_MODE';
 
 export type UniverseMode = 'REALISTIC' | 'FANTASTICAL' | 'CROSSOVER';
 
@@ -49,6 +49,8 @@ export interface CardSubStats {
 export interface PlayerCardTemplate {
   id: string;
   playerId: string; // Canonical athlete ID (e.g. 'michael-jordan')
+  sport?: 'NBA' | 'CFB';
+  displayPosition?: string; // e.g. 'QB', 'RB', 'WR', 'DB', 'DL' for CFB
   firstName: string;
   lastName: string;
   jerseyNumber: string;

@@ -187,7 +187,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="relative z-10 flex items-center justify-between px-2.5 py-1.5 bg-slate-900/95 border-b border-slate-800">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider rounded bg-slate-800 text-slate-200 border border-slate-700">
-              {card.position}
+              {card.displayPosition || card.position}
             </span>
             <span
               className={`text-[10px] font-bold tracking-wider uppercase truncate ${
@@ -322,59 +322,86 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
                 </linearGradient>
               </defs>
 
-              {/* Main Basketball Tank Silhouette */}
-              <path
-                d="M 32 10 L 45 10 C 48 22, 72 22, 75 10 L 88 10 L 94 34 C 82 40, 82 54, 96 60 L 96 126 C 96 130, 92 132, 88 132 L 32 132 C 28 132, 24 130, 24 126 L 24 60 C 38 54, 38 40, 26 34 Z"
-                fill={`url(#jersey-grad-${card.id}-${useFranchiseJersey ? 'f' : 'o'})`}
-                stroke={secondary}
-                strokeWidth="2.5"
-              />
+              {card.sport === 'CFB' ? (
+                <>
+                  {/* Main College Football Shoulder-Pad Jersey Silhouette */}
+                  <path
+                    d="M 22 14 L 44 10 C 48 22, 72 22, 76 10 L 98 14 L 114 42 L 96 54 L 92 44 L 92 126 C 92 130, 88 132, 84 132 L 36 132 C 32 132, 28 130, 28 126 L 28 44 L 24 54 L 6 42 Z"
+                    fill={`url(#jersey-grad-${card.id}-${useFranchiseJersey ? 'f' : 'o'})`}
+                    stroke={secondary}
+                    strokeWidth="2.5"
+                  />
+                  {/* Football Shoulder Stripes */}
+                  <path d="M 14 28 L 28 20 L 28 30 L 11 38 Z" fill={secondary} fillOpacity="0.9" />
+                  <path d="M 106 28 L 92 20 L 92 30 L 109 38 Z" fill={secondary} fillOpacity="0.9" />
+                  {/* Football V-Neck Collar & Laces Crest */}
+                  <path
+                    d="M 43 10 L 60 27 L 77 10"
+                    fill="none"
+                    stroke={secondary}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="60" cy="24" r="3" fill={accent} />
+                </>
+              ) : (
+                <>
+                  {/* Main Basketball Tank Silhouette */}
+                  <path
+                    d="M 32 10 L 45 10 C 48 22, 72 22, 75 10 L 88 10 L 94 34 C 82 40, 82 54, 96 60 L 96 126 C 96 130, 92 132, 88 132 L 32 132 C 28 132, 24 130, 24 126 L 24 60 C 38 54, 38 40, 26 34 Z"
+                    fill={`url(#jersey-grad-${card.id}-${useFranchiseJersey ? 'f' : 'o'})`}
+                    stroke={secondary}
+                    strokeWidth="2.5"
+                  />
 
-              {/* Optional Jersey Pattern Overlay */}
-              {jerseyStyle === 'PINSTRIPE' && (
-                <path
-                  d="M 32 10 L 45 10 C 48 22, 72 22, 75 10 L 88 10 L 94 34 C 82 40, 82 54, 96 60 L 96 126 L 24 126 L 24 60 C 38 54, 38 40, 26 34 Z"
-                  fill={`url(#pinstripe-${card.id}-${useFranchiseJersey ? 'f' : 'o'})`}
-                />
+                  {/* Optional Jersey Pattern Overlay */}
+                  {jerseyStyle === 'PINSTRIPE' && (
+                    <path
+                      d="M 32 10 L 45 10 C 48 22, 72 22, 75 10 L 88 10 L 94 34 C 82 40, 82 54, 96 60 L 96 126 L 24 126 L 24 60 C 38 54, 38 40, 26 34 Z"
+                      fill={`url(#pinstripe-${card.id}-${useFranchiseJersey ? 'f' : 'o'})`}
+                    />
+                  )}
+
+                  {jerseyStyle === 'CHEVRON' && (
+                    <path
+                      d="M 25 66 L 60 82 L 95 66 L 95 76 L 60 92 L 25 76 Z"
+                      fill={secondary}
+                      fillOpacity="0.32"
+                    />
+                  )}
+
+                  {jerseyStyle === 'RETRO_BAND' && (
+                    <rect
+                      x="25"
+                      y="68"
+                      width="70"
+                      height="14"
+                      fill={secondary}
+                      fillOpacity="0.32"
+                    />
+                  )}
+
+                  {/* Side Panels */}
+                  <path d="M 24 60 L 30 60 L 30 131 L 24 131 Z" fill={secondary} fillOpacity="0.75" />
+                  <path d="M 90 60 L 96 60 L 96 131 L 90 131 Z" fill={secondary} fillOpacity="0.75" />
+
+                  {/* V-Neck & Armhole Ribbed Trim */}
+                  <path
+                    d="M 43 10 C 47 25, 73 25, 77 10"
+                    fill="none"
+                    stroke={secondary}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M 45 10 C 48 22, 72 22, 75 10"
+                    fill="none"
+                    stroke={accent}
+                    strokeWidth="1.5"
+                  />
+                </>
               )}
-
-              {jerseyStyle === 'CHEVRON' && (
-                <path
-                  d="M 25 66 L 60 82 L 95 66 L 95 76 L 60 92 L 25 76 Z"
-                  fill={secondary}
-                  fillOpacity="0.32"
-                />
-              )}
-
-              {jerseyStyle === 'RETRO_BAND' && (
-                <rect
-                  x="25"
-                  y="68"
-                  width="70"
-                  height="14"
-                  fill={secondary}
-                  fillOpacity="0.32"
-                />
-              )}
-
-              {/* Side Panels */}
-              <path d="M 24 60 L 30 60 L 30 131 L 24 131 Z" fill={secondary} fillOpacity="0.75" />
-              <path d="M 90 60 L 96 60 L 96 131 L 90 131 Z" fill={secondary} fillOpacity="0.75" />
-
-              {/* V-Neck & Armhole Ribbed Trim */}
-              <path
-                d="M 43 10 C 47 25, 73 25, 77 10"
-                fill="none"
-                stroke={secondary}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              />
-              <path
-                d="M 45 10 C 48 22, 72 22, 75 10"
-                fill="none"
-                stroke={accent}
-                strokeWidth="1.5"
-              />
 
               {/* Player Last Name on Jersey Chest */}
               <text

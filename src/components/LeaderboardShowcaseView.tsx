@@ -12,6 +12,7 @@ import {
   TIER_LABELS,
   TIER_ORDER,
 } from '../data/nbaData';
+import { getCfbCardsForUniverse } from '../data/cfbData';
 import { PlayerCard } from './PlayerCard';
 import {
   Award,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 
 interface LeaderboardShowcaseViewProps {
+  sport?: 'NBA' | 'CFB';
   standings: LeagueTeamStanding[];
   ownedMap: Record<string, OwnedCard>;
   franchiseTeam: TeamIdentity;
@@ -34,6 +36,7 @@ interface LeaderboardShowcaseViewProps {
 }
 
 export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = ({
+  sport = 'NBA',
   standings,
   ownedMap,
   franchiseTeam,
@@ -47,8 +50,8 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
   const [searchQuery, setSearchQuery] = useState('');
 
   const universeCards = useMemo(
-    () => getCardsForUniverse(universe),
-    [universe]
+    () => (sport === 'CFB' ? getCfbCardsForUniverse(universe) : getCardsForUniverse(universe)),
+    [sport, universe]
   );
 
   // Build enriched player leaderboard rows (combining user stats + simulated league baseline for unowned/league cards)
@@ -284,7 +287,7 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
                           <div className="font-sport font-extrabold text-base text-white group-hover:text-amber-300 transition">
                             {row.card.firstName} {row.card.lastName}{' '}
                             <span className="text-xs font-bold text-slate-400">
-                              ({row.card.position} • {row.card.teamAbbr})
+                              ({row.card.displayPosition || row.card.position} • {row.card.teamAbbr})
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-400">
