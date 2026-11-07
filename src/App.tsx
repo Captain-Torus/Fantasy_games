@@ -151,6 +151,7 @@ interface FullSavedProfile {
   gmName: string;
   updatedAt: string;
   coins: number;
+  cfbCoins?: number;
   jackpotCharges: number;
   universe: UniverseMode;
   franchiseTeam: TeamIdentity;
@@ -159,6 +160,13 @@ interface FullSavedProfile {
   lineupIds: Record<LineupSlot, string>;
   cfbLineupIds?: Record<LineupSlot, string>;
   userRecord: {
+    wins: number;
+    losses: number;
+    pointsFor: number;
+    pointsAgainst: number;
+    championships: number;
+  };
+  cfbUserRecord?: {
     wins: number;
     losses: number;
     pointsFor: number;
@@ -210,6 +218,7 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
     gmName,
     updatedAt: new Date().toISOString(),
     coins: 15000,
+    cfbCoins: 15000,
     jackpotCharges: 0,
     universe: 'REALISTIC',
     franchiseTeam: DEFAULT_CUSTOM_TEAM,
@@ -310,6 +319,13 @@ function createStarterProfile(id: string, gmName: string): FullSavedProfile {
       pointsAgainst: 0,
       championships: 0,
     },
+    cfbUserRecord: {
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      championships: 0,
+    },
     cpuRecords: createDefaultCpuRecords(),
     claimedMilestones: [],
   };
@@ -390,6 +406,18 @@ function loadInitialProfiles(): {
           if (!parsed[k].cfbLineupIds) {
             parsed[k].cfbLineupIds = { ...DEFAULT_CFB_LINEUP };
           }
+          if (typeof parsed[k].cfbCoins !== 'number') {
+            parsed[k].cfbCoins = 15000;
+          }
+          if (!parsed[k].cfbUserRecord) {
+            parsed[k].cfbUserRecord = {
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+              championships: 0,
+            };
+          }
         });
         localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(parsed));
         const chosenId = activeRaw && parsed[activeRaw] ? activeRaw : ids[0];
@@ -441,8 +469,14 @@ export function App() {
   );
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(false);
 
-  // Pack Mode Economy & Owned Collection Binder
-  const [coins, setCoins] = useState<number>(initialActive.coins);
+  // Pack Mode Economy & Owned Collection Binder (Separate Coins for NBA vs CFB!)
+  const [nbaCoins, setNbaCoins] = useState<number>(initialActive.coins);
+  const [cfbCoins, setCfbCoins] = useState<number>(
+    initialActive.cfbCoins ?? 15000
+  );
+  const coins = activeSport === 'CFB' ? cfbCoins : nbaCoins;
+  const setCoins = activeSport === 'CFB' ? setCfbCoins : setNbaCoins;
+
   const [jackpotCharges, setJackpotCharges] = useState<number>(
     initialActive.jackpotCharges
   );
@@ -480,8 +514,20 @@ export function App() {
     null
   );
 
-  // League Team Standings State (Both User & CPU Franchises are stateful and update after every game!)
-  const [userRecord, setUserRecord] = useState(initialActive.userRecord);
+  // League Team Standings State (Separate User Records for NBA vs CFB!)
+  const [nbaUserRecord, setNbaUserRecord] = useState(initialActive.userRecord);
+  const [cfbUserRecord, setCfbUserRecord] = useState(
+    initialActive.cfbUserRecord || {
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      championships: 0,
+    }
+  );
+  const userRecord = activeSport === 'CFB' ? cfbUserRecord : nbaUserRecord;
+  const setUserRecord =
+    activeSport === 'CFB' ? setCfbUserRecord : setNbaUserRecord;
 
   const [cpuRecords, setCpuRecords] = useState<
     Record<
@@ -532,7 +578,8 @@ export function App() {
       id: activeProfileId,
       gmName,
       updatedAt: new Date().toISOString(),
-      coins,
+      coins: nbaCoins,
+      cfbCoins,
       jackpotCharges,
       universe,
       franchiseTeam,
@@ -540,7 +587,8 @@ export function App() {
       ownedMap,
       lineupIds,
       cfbLineupIds,
-      userRecord,
+      userRecord: nbaUserRecord,
+      cfbUserRecord,
       cpuRecords,
       claimedMilestones,
     };
@@ -558,7 +606,8 @@ export function App() {
   }, [
     activeProfileId,
     gmName,
-    coins,
+    nbaCoins,
+    cfbCoins,
     jackpotCharges,
     universe,
     franchiseTeam,
@@ -566,7 +615,8 @@ export function App() {
     ownedMap,
     lineupIds,
     cfbLineupIds,
-    userRecord,
+    nbaUserRecord,
+    cfbUserRecord,
     cpuRecords,
     claimedMilestones,
   ]);
@@ -574,7 +624,8 @@ export function App() {
   const applyLoadedProfile = (prof: FullSavedProfile) => {
     setActiveProfileId(prof.id);
     setGmName(prof.gmName);
-    setCoins(prof.coins);
+    setNbaCoins(prof.coins);
+    setCfbCoins(prof.cfbCoins ?? 15000);
     setJackpotCharges(prof.jackpotCharges ?? 0);
     setUniverse(prof.universe ?? 'REALISTIC');
     setFranchiseTeam(prof.franchiseTeam ?? DEFAULT_CUSTOM_TEAM);
@@ -582,7 +633,16 @@ export function App() {
     setOwnedMap(prof.ownedMap);
     setLineupIds(prof.lineupIds);
     setCfbLineupIds(prof.cfbLineupIds || DEFAULT_CFB_LINEUP);
-    setUserRecord(prof.userRecord);
+    setNbaUserRecord(prof.userRecord);
+    setCfbUserRecord(
+      prof.cfbUserRecord || {
+        wins: 0,
+        losses: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+        championships: 0,
+      }
+    );
     setCpuRecords(prof.cpuRecords || createDefaultCpuRecords());
     setClaimedMilestones(prof.claimedMilestones || []);
   };
@@ -623,7 +683,8 @@ export function App() {
       id: activeProfileId,
       gmName,
       updatedAt: new Date().toISOString(),
-      coins,
+      coins: nbaCoins,
+      cfbCoins,
       jackpotCharges,
       universe,
       franchiseTeam,
@@ -631,7 +692,8 @@ export function App() {
       ownedMap,
       lineupIds,
       cfbLineupIds,
-      userRecord,
+      userRecord: nbaUserRecord,
+      cfbUserRecord,
       cpuRecords,
       claimedMilestones,
     };
@@ -1365,7 +1427,7 @@ export function App() {
                 {coins.toLocaleString()}
               </span>
               <span className="text-[10px] font-bold text-slate-400 uppercase">
-                COINS
+                {activeSport} COINS
               </span>
             </div>
           </div>
