@@ -101,12 +101,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onClick,
   actionBadge,
 }) => {
-  const maxCap = card.ovr >= 99 && evoBonus > 0 ? 100 : 99;
-  const effectiveOvr = Math.min(maxCap, card.ovr + evoBonus);
-  const effectiveOff = Math.min(maxCap, card.stats.off + evoBonus);
-  const effectivePlay = Math.min(maxCap, card.stats.play + evoBonus);
-  const effectiveDef = Math.min(maxCap, card.stats.def + evoBonus);
-  const effectiveClu = Math.min(maxCap, card.stats.clu + evoBonus);
+  const effectiveOvr = card.ovr + evoBonus;
+  const effectiveOff = card.stats.off + evoBonus;
+  const effectivePlay = card.stats.play + evoBonus;
+  const effectiveDef = card.stats.def + evoBonus;
+  const effectiveClu = card.stats.clu + evoBonus;
 
   const primary =
     useFranchiseJersey && franchiseTeam ? franchiseTeam.primaryColor : card.primaryColor;
@@ -201,7 +200,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
           {/* OVR Rating Slab Badge */}
           <div className="flex items-center gap-1 shrink-0">
-            {evoBonus > 0 && !isDarkMatter && (
+            {evoBonus > 0 && (
               <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/90 border border-emerald-500/40 px-1 rounded">
                 +{evoBonus}
               </span>

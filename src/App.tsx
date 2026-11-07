@@ -398,8 +398,7 @@ export function App() {
     const sum = slots.reduce((acc, s) => {
       const c = lineupCards[s];
       const evo = ownedMap[c.id]?.evoBonus ?? 0;
-      const maxCap = c.ovr >= 99 && evo > 0 ? 100 : 99;
-      return acc + Math.min(maxCap, c.ovr + evo);
+      return acc + (c.ovr + evo);
     }, 0);
     return Math.round(sum / slots.length);
   }, [lineupCards, ownedMap]);
@@ -538,8 +537,7 @@ export function App() {
       const sum = slots.reduce((acc, s) => {
         const c = cardById(p.lineupIds[s]);
         const evo = p.ownedMap[c.id]?.evoBonus ?? 0;
-        const cap = c.ovr >= 99 && evo > 0 ? 100 : 99;
-        return acc + Math.min(cap, c.ovr + evo);
+        return acc + (c.ovr + evo);
       }, 0);
       return {
         id: p.id,
@@ -884,7 +882,7 @@ export function App() {
       ({ owned }) => owned.evoBonus >= 1
     );
     const has100OvrCard = ownedCardsList.some(
-      ({ card, owned }) => card.ovr >= 99 && owned.evoBonus >= 1
+      ({ card, owned }) => card.ovr + owned.evoBonus >= 100
     );
 
     return [
@@ -1698,10 +1696,7 @@ export function App() {
                         Object.keys(lineupIds) as LineupSlot[]
                       ).find((s) => lineupIds[s] === card.id);
 
-                      const canCombine =
-                        owned.quantity >= 3 &&
-                        (card.ovr + owned.evoBonus < 99 ||
-                          (card.ovr + owned.evoBonus === 99 && card.ovr === 99));
+                      const canCombine = owned.quantity >= 3;
 
                       return (
                         <div
@@ -1755,14 +1750,14 @@ export function App() {
                                 <button
                                   onClick={() => handleCombineEvo(card.id)}
                                   className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 transition ${
-                                    card.ovr + owned.evoBonus === 99
+                                    card.ovr + owned.evoBonus >= 99
                                       ? 'bg-gradient-to-r from-purple-700 via-fuchsia-500 to-amber-400 text-white shadow-md shadow-fuchsia-500/30'
                                       : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                                   }`}
                                 >
                                   <ArrowUpCircle className="w-3.5 h-3.5" />
-                                  {card.ovr + owned.evoBonus === 99
-                                    ? '🌌 Forge 100 Dark Matter!'
+                                  {card.ovr + owned.evoBonus >= 99
+                                    ? `🌌 Forge ${card.ovr + owned.evoBonus + 1} Dark Matter!`
                                     : 'Evo +1 OVR (3x)'}
                                 </button>
                               )}

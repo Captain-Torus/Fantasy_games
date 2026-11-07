@@ -927,8 +927,7 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
 
     const userCard = lineupCards[selectedSlot];
     const evo = ownedMap[userCard.id]?.evoBonus ?? 0;
-    const maxCap = userCard.ovr >= 99 && evo > 0 ? 100 : 99;
-    const effectiveOvr = Math.min(maxCap, userCard.ovr + evo);
+    const effectiveOvr = userCard.ovr + evo;
     const currentStamina = staminaBySlot[selectedSlot];
 
     const { cooldownPlays, staminaDrain } = getCardCooldownAndDrain(
@@ -939,8 +938,8 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     const staminaFactor =
       currentStamina >= 65 ? 1.0 : 0.85 + (currentStamina / 100) * 0.15;
 
-    const uPrimary = Math.min(maxCap, userCard.stats[currentScenario.primaryStat] + evo);
-    const uSecondary = Math.min(maxCap, userCard.stats[currentScenario.secondaryStat] + evo);
+    const uPrimary = userCard.stats[currentScenario.primaryStat] + evo;
+    const uSecondary = userCard.stats[currentScenario.secondaryStat] + evo;
 
     const cPrimary = Math.min(99, cpuCard.stats[currentScenario.primaryStat] + cpuScaleBonus);
     const cSecondary = Math.min(99, cpuCard.stats[currentScenario.secondaryStat] + cpuScaleBonus);
@@ -1646,16 +1645,15 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                 {slotsOrder.map((slot) => {
                   const card = lineupCards[slot];
                   const evo = ownedMap[card.id]?.evoBonus ?? 0;
-                  const maxCap = card.ovr >= 99 && evo > 0 ? 100 : 99;
-                  const effectiveOvr = Math.min(maxCap, card.ovr + evo);
+                  const effectiveOvr = card.ovr + evo;
                   const cdRemaining = cooldownsBySlot[slot];
                   const isCooling = cdRemaining > 0;
                   const isChosen = selectedSlot === slot;
                   const rule = getCardCooldownAndDrain(card.tier, effectiveOvr);
 
                   // Calculate this card's base Play Fit for the current play
-                  const uPrimary = Math.min(maxCap, card.stats[currentScenario.primaryStat] + evo);
-                  const uSecondary = Math.min(maxCap, card.stats[currentScenario.secondaryStat] + evo);
+                  const uPrimary = card.stats[currentScenario.primaryStat] + evo;
+                  const uSecondary = card.stats[currentScenario.secondaryStat] + evo;
                   const currentStam = staminaBySlot[slot];
                   const stamFactor = currentStam >= 65 ? 1.0 : 0.85 + (currentStam / 100) * 0.15;
                   const playFitScore = Math.round((uPrimary * 0.62 + uSecondary * 0.38) * stamFactor);
