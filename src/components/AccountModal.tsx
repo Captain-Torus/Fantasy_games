@@ -39,6 +39,7 @@ interface AccountModalProps {
   onDeleteProfile: (profileId: string) => void;
   onExportSaveCode: () => string;
   onImportSaveCode: (code: string) => boolean;
+  onSet15000Coins?: () => void;
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
@@ -53,6 +54,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   onDeleteProfile,
   onExportSaveCode,
   onImportSaveCode,
+  onSet15000Coins,
 }) => {
   const [gmNameInput, setGmNameInput] = useState(currentGmName);
   const [newProfileName, setNewProfileName] = useState('');
@@ -371,6 +373,25 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   Restore Account from Code
                 </button>
               </form>
+
+              {onSet15000Coins && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSet15000Coins();
+                      setStatusMessage({
+                        type: 'success',
+                        text: 'Vault Balance set to 15,000 Coins!',
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[11px] font-bold text-slate-500 hover:text-emerald-400 transition"
+                    title="Hidden Cloud Vault Refill: Set Coin Balance to 15,000"
+                  >
+                    Vault Refill: Set 15,000 Coins
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

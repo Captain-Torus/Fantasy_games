@@ -2298,6 +2298,7 @@ export function App() {
         onDeleteProfile={handleDeleteProfile}
         onExportSaveCode={handleExportSaveCode}
         onImportSaveCode={handleImportSaveCode}
+        onSet15000Coins={() => setCoins(15000)}
       />
     </div>
   );
