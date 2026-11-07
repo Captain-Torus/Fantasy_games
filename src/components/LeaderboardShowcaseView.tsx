@@ -74,13 +74,36 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
         const games = owned?.gamesPlayed ?? 0;
 
         // If the user has played games with this card, use actual box score averages; otherwise show projected league averages based on sub-stats
+        const isCfbCard = sport === 'CFB' || card.sport === 'CFB';
         const ppg =
           games > 0
             ? Number((owned.totalPoints / games).toFixed(1))
+            : isCfbCard
+            ? Number(
+                (
+                  (card.displayPosition === 'QB'
+                    ? 2.2
+                    : card.displayPosition === 'RB' || card.displayPosition === 'WR'
+                    ? 1.1
+                    : 0.4) +
+                  Math.max(0, card.stats.off - 75) * 0.06
+                ).toFixed(1)
+              )
             : Number(((card.stats.off - 52) * 0.68).toFixed(1));
         const rpg =
           games > 0
             ? Number((owned.totalRebounds / games).toFixed(1))
+            : isCfbCard
+            ? Number(
+                (card.displayPosition === 'QB'
+                  ? 215 + (card.stats.play - 70) * 4.2
+                  : card.displayPosition === 'RB'
+                  ? 95 + (card.stats.play - 70) * 2.4
+                  : card.displayPosition === 'WR'
+                  ? 88 + (card.stats.play - 70) * 2.2
+                  : 32 + (card.stats.def - 70) * 1.1
+                ).toFixed(1)
+              )
             : Number(
                 (
                   (card.position === 'C' || card.position === 'PF' ? 4.5 : 1.5) +
@@ -90,6 +113,15 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
         const apg =
           games > 0
             ? Number((owned.totalAssists / games).toFixed(1))
+            : isCfbCard
+            ? Number(
+                (
+                  (card.displayPosition === 'DL' || card.displayPosition === 'DB'
+                    ? 2.1
+                    : 1.4) +
+                  (card.stats.def - 70) * 0.07
+                ).toFixed(1)
+              )
             : Number(
                 (
                   (card.position === 'PG' ? 3.5 : 1.2) +
@@ -228,17 +260,26 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
           {/* Sort Metric */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-slate-400">Rank By:</span>
-            {(['PTS', 'PPG', 'RPG', 'APG', 'CLUTCH', 'OVR'] as const).map((metric) => (
+            {(
+              [
+                { id: 'PTS', label: sport === 'CFB' ? 'TOT TDs' : 'PTS' },
+                { id: 'PPG', label: sport === 'CFB' ? 'TD/G' : 'PPG' },
+                { id: 'RPG', label: sport === 'CFB' ? 'YDS/G' : 'RPG' },
+                { id: 'APG', label: sport === 'CFB' ? 'SACKS/BIG' : 'APG' },
+                { id: 'CLUTCH', label: sport === 'CFB' ? '4TH%' : 'CLUTCH' },
+                { id: 'OVR', label: 'OVR' },
+              ] as const
+            ).map((metric) => (
               <button
-                key={metric}
-                onClick={() => setSortBy(metric)}
+                key={metric.id}
+                onClick={() => setSortBy(metric.id)}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold transition ${
-                  sortBy === metric
+                  sortBy === metric.id
                     ? 'bg-sky-500 text-slate-950'
                     : 'bg-slate-950 text-slate-300 border border-slate-800'
                 }`}
               >
-                {metric}
+                {metric.label}
               </button>
             ))}
           </div>
@@ -257,11 +298,21 @@ export const LeaderboardShowcaseView: React.FC<LeaderboardShowcaseViewProps> = (
                   <th className="py-3.5 px-4">Card Edition & Finish</th>
                   <th className="py-3.5 px-4 text-center">OVR</th>
                   <th className="py-3.5 px-4 text-center">GP</th>
-                  <th className="py-3.5 px-4 text-right">TOT PTS</th>
-                  <th className="py-3.5 px-4 text-right">PPG</th>
-                  <th className="py-3.5 px-4 text-right">RPG</th>
-                  <th className="py-3.5 px-4 text-right">APG</th>
-                  <th className="py-3.5 px-4 text-right">Clutch %</th>
+                  <th className="py-3.5 px-4 text-right">
+                    {sport === 'CFB' ? 'TOT TDs' : 'TOT PTS'}
+                  </th>
+                  <th className="py-3.5 px-4 text-right">
+                    {sport === 'CFB' ? 'TD / GM' : 'PPG'}
+                  </th>
+                  <th className="py-3.5 px-4 text-right">
+                    {sport === 'CFB' ? 'YARDS / GM' : 'RPG'}
+                  </th>
+                  <th className="py-3.5 px-4 text-right">
+                    {sport === 'CFB' ? 'SACKS / BIG' : 'APG'}
+                  </th>
+                  <th className="py-3.5 px-4 text-right">
+                    {sport === 'CFB' ? '4TH DOWN %' : 'Clutch %'}
+                  </th>
                   <th className="py-3.5 px-4 text-right">Showcase</th>
                 </tr>
               </thead>

@@ -56,6 +56,7 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
   const evoBonus = owned?.evoBonus ?? 0;
   const quantity = owned?.quantity ?? 0;
   const games = owned?.gamesPlayed ?? 0;
+  const isCfb = card.sport === 'CFB';
   const ppg = games > 0 ? (owned!.totalPoints / games).toFixed(1) : '0.0';
   const rpg = games > 0 ? (owned!.totalRebounds / games).toFixed(1) : '0.0';
   const apg = games > 0 ? (owned!.totalAssists / games).toFixed(1) : '0.0';
@@ -63,6 +64,14 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
     owned && owned.clutchPlaysTotal > 0
       ? Math.round((owned.clutchPlaysWon / owned.clutchPlaysTotal) * 100)
       : 0;
+  const cfbYardsLabel =
+    card.displayPosition === 'QB'
+      ? 'PASS YDS/G'
+      : card.displayPosition === 'RB'
+      ? 'RUSH YDS/G'
+      : card.displayPosition === 'WR'
+      ? 'REC YDS/G'
+      : 'TOT YDS/G';
 
   return (
     <div
@@ -144,19 +153,27 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
               </div>
               <div className="grid grid-cols-4 gap-3 text-center">
                 <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="text-[11px] font-semibold text-slate-400">PPG</div>
+                  <div className="text-[11px] font-semibold text-slate-400">
+                    {isCfb ? 'TDs / GM' : 'PPG'}
+                  </div>
                   <div className="font-sport font-extrabold text-xl text-white">{ppg}</div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="text-[11px] font-semibold text-slate-400">RPG</div>
+                  <div className="text-[11px] font-semibold text-slate-400">
+                    {isCfb ? cfbYardsLabel : 'RPG'}
+                  </div>
                   <div className="font-sport font-extrabold text-xl text-emerald-400">{rpg}</div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="text-[11px] font-semibold text-slate-400">APG</div>
+                  <div className="text-[11px] font-semibold text-slate-400">
+                    {isCfb ? 'SACKS / BIG' : 'APG'}
+                  </div>
                   <div className="font-sport font-extrabold text-xl text-sky-400">{apg}</div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="text-[11px] font-semibold text-slate-400">CLUTCH WIN</div>
+                  <div className="text-[11px] font-semibold text-slate-400">
+                    {isCfb ? '4TH DOWN %' : 'CLUTCH WIN'}
+                  </div>
                   <div className="font-sport font-extrabold text-xl text-amber-400">
                     {clutchPct}%
                   </div>

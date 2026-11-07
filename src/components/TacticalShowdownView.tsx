@@ -309,6 +309,13 @@ const STAT_NAMES: Record<'off' | 'play' | 'def' | 'clu', string> = {
   clu: 'CLUTCH IQ',
 };
 
+const CFB_STAT_NAMES: Record<'off' | 'play' | 'def' | 'clu', string> = {
+  off: 'TOUCHDOWN / SCORING',
+  play: 'YARDS / BREAKAWAY SPEED',
+  def: 'PASS RUSH / COVERAGE',
+  clu: '4TH DOWN CLUTCH',
+};
+
 // Higher-tier cards have longer cooldowns & higher stamina drain!
 export function getCardCooldownAndDrain(tier: CardTier, effectiveOvr: number): {
   cooldownPlays: number;
@@ -739,8 +746,22 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
             };
           }
           const aWins = m.teamA.ovr + Math.random() * 8 >= m.teamB.ovr + Math.random() * 8;
-          const sA = aWins ? 108 + Math.floor(Math.random() * 12) : 96 + Math.floor(Math.random() * 10);
-          const sB = aWins ? 95 + Math.floor(Math.random() * 10) : 109 + Math.floor(Math.random() * 12);
+          const sA =
+            sport === 'CFB'
+              ? aWins
+                ? 28 + Math.floor(Math.random() * 18)
+                : 17 + Math.floor(Math.random() * 11)
+              : aWins
+              ? 108 + Math.floor(Math.random() * 12)
+              : 96 + Math.floor(Math.random() * 10);
+          const sB =
+            sport === 'CFB'
+              ? aWins
+                ? 17 + Math.floor(Math.random() * 11)
+                : 28 + Math.floor(Math.random() * 18)
+              : aWins
+              ? 95 + Math.floor(Math.random() * 10)
+              : 109 + Math.floor(Math.random() * 12);
           otherCpuResults.push({
             winnerId: aWins ? m.teamA.id : m.teamB.id,
             loserId: aWins ? m.teamB.id : m.teamA.id,
@@ -799,8 +820,8 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
             };
           }
           const aWins = m.teamA.ovr + Math.random() * 8 >= m.teamB.ovr + Math.random() * 8;
-          const sA = aWins ? 112 : 99;
-          const sB = aWins ? 98 : 114;
+          const sA = sport === 'CFB' ? (aWins ? 35 : 24) : aWins ? 112 : 99;
+          const sB = sport === 'CFB' ? (aWins ? 24 : 38) : aWins ? 98 : 114;
           otherCpuResults.push({
             winnerId: aWins ? m.teamA.id : m.teamB.id,
             loserId: aWins ? m.teamB.id : m.teamA.id,
@@ -892,8 +913,14 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       const ovrA = getTeamOvrFromRoster(teamA.rosterIds);
       const ovrB = getTeamOvrFromRoster(teamB.rosterIds);
       const aWins = ovrA + (Math.random() * 14 - 7) >= ovrB + (Math.random() * 14 - 7);
-      const winScore = 106 + Math.floor(Math.random() * 18);
-      const loseScore = winScore - (3 + Math.floor(Math.random() * 14));
+      const winScore =
+        sport === 'CFB'
+          ? 27 + Math.floor(Math.random() * 19)
+          : 106 + Math.floor(Math.random() * 18);
+      const loseScore =
+        sport === 'CFB'
+          ? Math.max(10, winScore - (3 + Math.floor(Math.random() * 18)))
+          : winScore - (3 + Math.floor(Math.random() * 14));
       otherCpuResults.push({
         winnerId: aWins ? teamA.id : teamB.id,
         loserId: aWins ? teamB.id : teamA.id,
@@ -983,41 +1010,71 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
     const wonPlay = userPower > cpuPower;
     const margin = Math.abs(userPower - cpuPower);
 
-    // When you lose or tie a play, the CPU drops ~25 points!
-    const userPointsAdded = wonPlay
-      ? margin >= 8
-        ? 18
+    // Football vs Basketball Scoring!
+    // In College Football:
+    // - Winning a play scores a Touchdown (+7 PTS) or TD + 2-Pt Conversion (+8 PTS on dominant plays),
+    //   while holding CPU to a Punt/Turnover (0 PTS) or Field Goal (3 PTS).
+    // - Losing or tying a play allows a CPU Touchdown (+7 PTS) or Pick-Six + FG (+10 PTS on blowouts),
+    //   while holding User to a Punt (0 PTS) or Field Goal (3 PTS).
+    const userPointsAdded =
+      sport === 'CFB'
+        ? wonPlay
+          ? margin >= 7
+            ? 8 // TD + 2-Pt Conversion
+            : 7 // Touchdown + PAT
+          : isTie
+          ? 3 // Field Goal on tie
+          : margin >= 6
+          ? 0 // Punt / Turnover on Downs
+          : 3 // Field Goal
+        : wonPlay
+        ? margin >= 8
+          ? 18
+          : margin >= 4
+          ? 16
+          : 14
+        : isTie
+        ? 8
+        : margin >= 7
+        ? 6
+        : 8;
+
+    const cpuPointsAdded =
+      sport === 'CFB'
+        ? wonPlay
+          ? margin >= 5
+            ? 0 // Shutout stop / Punt / Interception
+            : 3 // CPU held to Field Goal
+          : isTie
+          ? 7 // CPU Touchdown on tie-breaker
+          : margin >= 8
+          ? 10 // CPU TD + takeaway FG
+          : 7 // CPU Touchdown + PAT
+        : wonPlay
+        ? margin >= 7
+          ? 9
+          : 11
+        : isTie
+        ? 25
+        : margin >= 8
+        ? 27
         : margin >= 4
-        ? 16
-        : 14
-      : isTie
-      ? 8
-      : margin >= 7
-      ? 6
-      : 8;
-    const cpuPointsAdded = wonPlay
-      ? margin >= 7
-        ? 9
-        : 11
-      : isTie
-      ? 25
-      : margin >= 8
-      ? 27
-      : margin >= 4
-      ? 25
-      : 24;
+        ? 25
+        : 24;
 
     const finalUserScore = userScore + userPointsAdded;
     let finalCpuScore = cpuScore + cpuPointsAdded;
 
-    const isLastPlay = playIndex + 1 >= PLAY_SCENARIOS.length;
+    const isLastPlay = playIndex + 1 >= activeScenarios.length;
 
-    // If the final game score is tied after Play 8, the other team (CPU) wins!
+    // If the final game score is tied after Play 8, the other team (CPU) wins in Overtime!
     if (isLastPlay && finalUserScore === finalCpuScore) {
-      finalCpuScore += 3;
+      finalCpuScore += sport === 'CFB' ? 7 : 3;
     }
 
-    // Update Box Score (scaled so active players log realistic NBA star totals for the Leaderboard!)
+    // Update Box Score:
+    // - For CFB: `pts` = Touchdowns (TDs), `reb` = Passing/Rushing/Receiving Yards (YDS), `ast` = Sacks / Big Plays
+    // - For NBA: `pts` = Points, `reb` = Rebounds, `ast` = Assists
     const updatedBox = { ...boxScore };
     const prevStats = updatedBox[userCard.id] || {
       played: false,
@@ -1027,11 +1084,45 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       clutchWon: 0,
       clutchTotal: 0,
     };
+
+    const cfbTdsAdded = wonPlay ? (margin >= 9 ? 2 : 1) : 0;
+    const cfbYardsAdded =
+      userCard.displayPosition === 'QB'
+        ? wonPlay
+          ? 68 + Math.min(35, margin * 3)
+          : 28
+        : userCard.displayPosition === 'RB' || userCard.displayPosition === 'WR'
+        ? wonPlay
+          ? 46 + Math.min(30, margin * 2)
+          : 16
+        : wonPlay
+        ? 24 + Math.min(20, margin * 2)
+        : 8;
+    const cfbBigPlaysAdded = wonPlay
+      ? currentScenario.primaryStat === 'def' || margin >= 6
+        ? 2
+        : 1
+      : currentScenario.primaryStat === 'def'
+      ? 1
+      : 0;
+
     updatedBox[userCard.id] = {
       played: true,
-      pts: prevStats.pts + (wonPlay ? userPointsAdded : 8),
-      reb: prevStats.reb + (currentScenario.primaryStat === 'def' ? 5 : 3),
-      ast: prevStats.ast + (currentScenario.primaryStat === 'play' ? 5 : 2),
+      pts: prevStats.pts + (sport === 'CFB' ? cfbTdsAdded : wonPlay ? userPointsAdded : 8),
+      reb:
+        prevStats.reb +
+        (sport === 'CFB'
+          ? cfbYardsAdded
+          : currentScenario.primaryStat === 'def'
+          ? 5
+          : 3),
+      ast:
+        prevStats.ast +
+        (sport === 'CFB'
+          ? cfbBigPlaysAdded
+          : currentScenario.primaryStat === 'play'
+          ? 5
+          : 2),
       clutchWon: prevStats.clutchWon + (currentScenario.isClutch && wonPlay ? 1 : 0),
       clutchTotal: prevStats.clutchTotal + (currentScenario.isClutch ? 1 : 0),
     };
@@ -1066,13 +1157,33 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
       slotsOrder.find((s) => nextCooldowns[s] === 0) || 'PG';
     setSelectedSlot(nextAvailable);
 
-    const narrative = wonPlay
-      ? `${userCard.firstName} ${userCard.lastName} (#${userCard.jerseyNumber}) overpowers ${cpuCard.lastName} (${userPower} vs ${cpuPower}) for a +${userPointsAdded}–${cpuPointsAdded} swing! (${
-          cooldownPlays > 0 ? `${cooldownPlays}-Play Cooldown` : '0 Cooldown'
-        })`
-      : isTie
-      ? `TIE BREAKER GOES TO CPU (${userPower} vs ${cpuPower})! ${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) punishes the tie with a ${cpuPointsAdded}–${userPointsAdded} CPU surge!`
-      : `${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) dominates ${userCard.lastName} (${cpuPower} vs ${userPower}) for a massive ${cpuPointsAdded}–${userPointsAdded} CPU run!`;
+    const cfbWinPlayDesc =
+      userCard.displayPosition === 'QB'
+        ? `launches a ${cfbYardsAdded}-yard TD bomb (+${userPointsAdded} PTS, +${cfbYardsAdded} Pass Yds, ${cfbTdsAdded} TD)`
+        : userCard.displayPosition === 'RB'
+        ? `breaks tackles for a ${cfbYardsAdded}-yard rushing TOUCHDOWN (+${userPointsAdded} PTS, +${cfbYardsAdded} Rush Yds, ${cfbTdsAdded} TD)`
+        : userCard.displayPosition === 'WR'
+        ? `mosses the defender for a ${cfbYardsAdded}-yard receiving TOUCHDOWN (+${userPointsAdded} PTS, +${cfbYardsAdded} Rec Yds, ${cfbTdsAdded} TD)`
+        : `forces a turnover & sparks a TOUCHDOWN drive (+${userPointsAdded} PTS, ${cfbBigPlaysAdded} Sacks/Big Plays, +${cfbYardsAdded} Return Yds)`;
+
+    const narrative =
+      sport === 'CFB'
+        ? wonPlay
+          ? `TOUCHDOWN! ${userCard.firstName} ${userCard.lastName} (#${userCard.jerseyNumber}) beats ${cpuCard.lastName} (${userPower} vs ${cpuPower}) and ${cfbWinPlayDesc}! CPU held to ${
+              cpuPointsAdded === 0 ? 'a Punt (0 PTS)' : 'a Field Goal (3 PTS)'
+            }.`
+          : isTie
+          ? `4TH DOWN TIE GOES TO CPU (${userPower} vs ${cpuPower})! ${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) rips off a CPU TOUCHDOWN (+${cpuPointsAdded} PTS) while holding you to a Field Goal (+${userPointsAdded} PTS)!`
+          : `TURNOVER / CPU TOUCHDOWN! ${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) overpowers ${userCard.lastName} (${cpuPower} vs ${userPower}) for a +${cpuPointsAdded} PTS CPU Touchdown drive (${
+              userPointsAdded === 0 ? 'Your drive ends in a Punt' : 'You settle for a 3-PT Field Goal'
+            })!`
+        : wonPlay
+        ? `${userCard.firstName} ${userCard.lastName} (#${userCard.jerseyNumber}) overpowers ${cpuCard.lastName} (${userPower} vs ${cpuPower}) for a +${userPointsAdded}–${cpuPointsAdded} swing! (${
+            cooldownPlays > 0 ? `${cooldownPlays}-Play Cooldown` : '0 Cooldown'
+          })`
+        : isTie
+        ? `TIE BREAKER GOES TO CPU (${userPower} vs ${cpuPower})! ${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) punishes the tie with a ${cpuPointsAdded}–${userPointsAdded} CPU surge!`
+        : `${cpuCard.firstName} ${cpuCard.lastName} (#${cpuCard.jerseyNumber}) dominates ${userCard.lastName} (${cpuPower} vs ${userPower}) for a massive ${cpuPointsAdded}–${userPointsAdded} CPU run!`;
 
     setPlayLogs((prev) => [
       {
@@ -1138,7 +1249,10 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase">
-                <Swords className="w-3.5 h-3.5" /> Tactical Showdowns • Ties Go to CPU • Lost Plays = ~25 CPU PTS
+                <Swords className="w-3.5 h-3.5" />{' '}
+                {sport === 'CFB'
+                  ? 'College Football Showdowns • Touchdowns (+7/+8), Field Goals (+3) & Yards'
+                  : 'Tactical Showdowns • Ties Go to CPU • Lost Plays = ~25 CPU PTS'}
               </div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-400/30 text-rose-300 text-xs font-extrabold uppercase">
                 Dynamic Opponent Scaling: +{cpuScaleBonus} CPU OVR Boost (Based on Your {userTeamOvr} OVR & {userWins} Wins)
@@ -1598,17 +1712,17 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                   </span>
                   {currentScenario.isClutch && (
                     <span className="px-2.5 py-0.5 rounded bg-rose-500 text-white font-extrabold text-xs uppercase animate-pulse">
-                      4TH QUARTER CLUTCH BONUS
+                      {sport === 'CFB' ? '4TH DOWN / RED-ZONE CLUTCH' : '4TH QUARTER CLUTCH BONUS'}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-bold">
                   <span className="text-slate-400">Key Stats Tested:</span>
                   <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700">
-                    62% {STAT_NAMES[currentScenario.primaryStat]}
+                    62% {(sport === 'CFB' ? CFB_STAT_NAMES : STAT_NAMES)[currentScenario.primaryStat]}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-300 border border-slate-700">
-                    38% {STAT_NAMES[currentScenario.secondaryStat]}
+                    38% {(sport === 'CFB' ? CFB_STAT_NAMES : STAT_NAMES)[currentScenario.secondaryStat]}
                   </span>
                 </div>
               </div>
@@ -1624,12 +1738,17 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                   Play Call Modifier:
                 </span>
                 <div className="flex gap-2">
-                  {(
-                    [
-                      { id: 'BALANCED', label: 'Balanced Set (+Steady)' },
-                      { id: 'AGGRESSIVE', label: 'High-Tempo Gamble (High Ceiling)' },
-                      { id: 'CLUTCH_FOCUS', label: 'Iso / Lockdown Focus (+Clutch)' },
-                    ] as const
+                  {(sport === 'CFB'
+                    ? ([
+                        { id: 'BALANCED', label: 'Pro-Style Balanced (+Steady)' },
+                        { id: 'AGGRESSIVE', label: 'No-Huddle Air Raid / Blitz (Big Play)' },
+                        { id: 'CLUTCH_FOCUS', label: 'Red-Zone / 4th Down Focus (+4th Down)' },
+                      ] as const)
+                    : ([
+                        { id: 'BALANCED', label: 'Balanced Set (+Steady)' },
+                        { id: 'AGGRESSIVE', label: 'High-Tempo Gamble (High Ceiling)' },
+                        { id: 'CLUTCH_FOCUS', label: 'Iso / Lockdown Focus (+Clutch)' },
+                      ] as const)
                   ).map((t) => (
                     <button
                       key={t.id}
@@ -1867,10 +1986,14 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                   }`}
                 >
                   <div className="font-sport font-extrabold text-base uppercase">
-                    {revealedPlayResult.wonPlay ? 'PLAY WON!' : 'CPU WON PLAY'} • +
-                    {revealedPlayResult.userPointsAdded} to +
-                    {revealedPlayResult.cpuPointsAdded} PTS (Score:{' '}
-                    {revealedPlayResult.userPower} vs {revealedPlayResult.cpuPower})
+                    {sport === 'CFB'
+                      ? revealedPlayResult.wonPlay
+                        ? `TOUCHDOWN DRIVE! (+${revealedPlayResult.userPointsAdded} to +${revealedPlayResult.cpuPointsAdded} PTS)`
+                        : `CPU TOUCHDOWN DRIVE (+${revealedPlayResult.cpuPointsAdded} to +${revealedPlayResult.userPointsAdded} PTS)`
+                      : `${revealedPlayResult.wonPlay ? 'PLAY WON!' : 'CPU WON PLAY'} • +${
+                          revealedPlayResult.userPointsAdded
+                        } to +${revealedPlayResult.cpuPointsAdded} PTS`}{' '}
+                    (Roll: {revealedPlayResult.userPower} vs {revealedPlayResult.cpuPower})
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5">
                     {revealedPlayResult.narrative}
@@ -2072,10 +2195,18 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                     <th className="py-2 px-3">Slot</th>
                     <th className="py-2 px-3">Player Card</th>
                     <th className="py-2 px-3">Edition</th>
-                    <th className="py-2 px-3 text-right">PTS</th>
-                    <th className="py-2 px-3 text-right">REB</th>
-                    <th className="py-2 px-3 text-right">AST</th>
-                    <th className="py-2 px-3 text-right">CLUTCH WON</th>
+                    <th className="py-2 px-3 text-right">
+                      {sport === 'CFB' ? 'TDs' : 'PTS'}
+                    </th>
+                    <th className="py-2 px-3 text-right">
+                      {sport === 'CFB' ? 'YARDS (PASS/RUSH/REC)' : 'REB'}
+                    </th>
+                    <th className="py-2 px-3 text-right">
+                      {sport === 'CFB' ? 'SACKS / BIG PLAYS' : 'AST'}
+                    </th>
+                    <th className="py-2 px-3 text-right">
+                      {sport === 'CFB' ? '4TH DOWN WON' : 'CLUTCH WON'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -2089,6 +2220,16 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                       clutchWon: 0,
                       clutchTotal: 0,
                     };
+                    const cfbYdsSuffix =
+                      sport === 'CFB'
+                        ? c.displayPosition === 'QB'
+                          ? ' PASS YDS'
+                          : c.displayPosition === 'RB'
+                          ? ' RUSH YDS'
+                          : c.displayPosition === 'WR'
+                          ? ' REC YDS'
+                          : ' YDS'
+                        : '';
                     return (
                       <tr
                         key={slot}
@@ -2096,7 +2237,11 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                         className="hover:bg-slate-800/60 cursor-pointer transition"
                       >
                         <td className="py-2.5 px-3 font-bold text-slate-400">
-                          {slot === 'SIXTH' ? '6TH' : slot}
+                          {sport === 'CFB'
+                            ? CFB_SLOT_LABELS[slot]
+                            : slot === 'SIXTH'
+                            ? '6TH'
+                            : slot}
                         </td>
                         <td className="py-2.5 px-3 font-bold text-white">
                           {c.firstName} {c.lastName}{' '}
@@ -2107,9 +2252,11 @@ export const TacticalShowdownView: React.FC<TacticalShowdownViewProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-right font-sport font-bold text-white">
                           {st.pts}
+                          {sport === 'CFB' ? ' TD' : ''}
                         </td>
                         <td className="py-2.5 px-3 text-right font-sport font-bold text-emerald-400">
                           {st.reb}
+                          {cfbYdsSuffix}
                         </td>
                         <td className="py-2.5 px-3 text-right font-sport font-bold text-sky-400">
                           {st.ast}

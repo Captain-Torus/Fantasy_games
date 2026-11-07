@@ -521,11 +521,15 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           {/* 4 Sub-Stats Slab Grid */}
           <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-slate-800/80 text-center">
             <div className="bg-slate-900/90 rounded py-1 px-0.5 border border-slate-800">
-              <div className="text-[9px] font-bold text-slate-400">OFF</div>
+              <div className="text-[9px] font-bold text-slate-400">
+                {card.sport === 'CFB' ? 'TD' : 'OFF'}
+              </div>
               <div className="font-sport font-bold text-xs text-rose-400">{effectiveOff}</div>
             </div>
             <div className="bg-slate-900/90 rounded py-1 px-0.5 border border-slate-800">
-              <div className="text-[9px] font-bold text-slate-400">PLAY</div>
+              <div className="text-[9px] font-bold text-slate-400">
+                {card.sport === 'CFB' ? 'YDS' : 'PLAY'}
+              </div>
               <div className="font-sport font-bold text-xs text-sky-400">{effectivePlay}</div>
             </div>
             <div className="bg-slate-900/90 rounded py-1 px-0.5 border border-slate-800">
@@ -533,7 +537,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               <div className="font-sport font-bold text-xs text-emerald-400">{effectiveDef}</div>
             </div>
             <div className="bg-slate-900/90 rounded py-1 px-0.5 border border-slate-800">
-              <div className="text-[9px] font-bold text-slate-400">CLU</div>
+              <div className="text-[9px] font-bold text-slate-400">
+                {card.sport === 'CFB' ? '4TH' : 'CLU'}
+              </div>
               <div className="font-sport font-bold text-xs text-amber-400">{effectiveClu}</div>
             </div>
           </div>
