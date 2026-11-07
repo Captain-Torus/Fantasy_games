@@ -1219,25 +1219,15 @@ export function App() {
             </button>
 
             {gameMode === 'PACK_MODE' && (
-              <>
-                <div className="px-3.5 py-2 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center gap-2">
-                  <Coins className="w-4 h-4 text-amber-400" />
-                  <span className="font-sport font-extrabold text-lg text-amber-300 leading-none">
-                    {coins.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    COINS
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCoins(15000)}
-                  className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition"
-                  title="Reset Coin Balance to 15,000"
-                >
-                  <Gift className="w-3.5 h-3.5" />
-                  Set 15,000 Coins
-                </button>
-              </>
+              <div className="px-3.5 py-2 rounded-xl bg-slate-900 border border-amber-500/40 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-400" />
+                <span className="font-sport font-extrabold text-lg text-amber-300 leading-none">
+                  {coins.toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  COINS
+                </span>
+              </div>
             )}
           </div>
         </div>
